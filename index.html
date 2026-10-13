@@ -1,0 +1,703 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Teeth 11·21 Optics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: a sticky 4:3 black studio stage (same framing as the Cycles camera) beside a scrolling lab-bench control column; stacks on phones. Single dark look, by choice. */
+:root {
+  --bg: #0a0b0d;
+  --panel: #121418;
+  --line: #23272e;
+  --fg: #e4e6e9;
+  --muted: #8b919b;
+  --accent: #d6c29a;   /* dentin ivory */
+  --cool: #8fb8e6;     /* enamel blue-white */
+  --chip: #1a1d23;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; }
+.wrap { box-sizing: border-box; padding-inline: 16px; padding-block: 16px 24px; display: grid; gap: 14px; max-width: 1440px; margin-inline: auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: .01em; }
+h1 span { color: var(--accent); font-family: var(--mono); font-weight: 500; }
+header p { margin: 0; color: var(--muted); font-size: 13px; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.stagecol { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); min-width: 0; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .stagecol { position: static; } }
+
+.stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 4 / 3; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; touch-action: none; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.ref { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.wipe { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); pointer-events: none; }
+.tag { position: absolute; top: 10px; font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 5px 7px; border-radius: 3px; background: rgba(0,0,0,.6); color: var(--fg); pointer-events: none; }
+.tag.l { left: 10px; } .tag.r { right: 10px; color: var(--accent); }
+.status { position: absolute; inset: auto 0 0 0; padding: 8px 12px; font: 12px var(--mono); color: var(--muted); pointer-events: none; }
+.hint { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; max-width: 80ch; }
+.hint b { color: var(--accent); font-weight: 600; }
+.sub { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 14px 14px; display: grid; gap: 4px; min-width: 0; }
+fieldset { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 12px 0 8px; display: grid; gap: 10px; min-width: 0; }
+fieldset:first-child { border-top: 0; }
+legend { padding: 0; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); float: left; width: 100%; margin-bottom: 2px; }
+legend b { font-weight: 600; }
+.enamel b { color: var(--cool); } .dentin b { color: var(--accent); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg.two { grid-template-columns: 1fr 1fr; }
+.seg button { padding: 7px 4px; font-size: 12.5px; background: var(--chip); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #17140e; border-color: var(--accent); }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.row label { font-size: 13px; }
+.row output { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 0; }
+.field { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: center; font-size: 13px; }
+select { font: 13px var(--sans); color: var(--fg); background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; width: 100%; }
+select:disabled { opacity: .5; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.check input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 500 13px var(--sans); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 7px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { padding: 5px 0; border-bottom: 1px solid var(--line); text-align: left; font-weight: 400; }
+th { color: var(--muted); }
+td { text-align: right; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 8px; }
+#spec { width: 100%; height: 140px; display: block; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.6; margin: 0; }
+details { border-top: 1px solid var(--line); padding-top: 10px; }
+summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
+details ul { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+details li { margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>치아 광학 시뮬레이터 <span>#11 · #21</span></h1>
+    <p>teeth-11-21.blend 메시 · 분석적 에나멜·덴틴 광학 모델</p>
+  </header>
+
+  <div class="main">
+    <div class="stagecol">
+      <div class="stage" id="stage">
+        <img class="ref" id="ref" src="cycles.png" alt="Blender Cycles 원본 렌더" hidden>
+        <div class="wipe" id="wipe" hidden></div>
+        <span class="tag l" id="tagL" hidden>WebGL</span>
+        <span class="tag r" id="tagR" hidden>Cycles</span>
+        <div class="status" id="status">모델 불러오는 중…</div>
+      </div>
+      <p class="hint" id="hint"></p>
+      <p class="sub">드래그로 회전, 휠·핀치로 확대, 오른쪽 드래그로 이동. 정면 보기는 Cycles 카메라와 같은 정사영 구도(가로 19 mm)입니다.</p>
+    </div>
+
+    <form class="panel" id="panel" onsubmit="return false">
+      <fieldset>
+        <legend>관찰 모드</legend>
+        <div class="seg" id="presets">
+          <button type="button" data-p="refl" aria-pressed="true">반사광</button>
+          <button type="button" data-p="trans" aria-pressed="false">투과광</button>
+          <button type="button" data-p="mix" aria-pressed="false">반사+투과</button>
+          <button type="button" data-p="uv" aria-pressed="false">UV 형광</button>
+          <button type="button" data-p="nirR" aria-pressed="false">NIR 반사</button>
+          <button type="button" data-p="nirT" aria-pressed="false">NIR 투조</button>
+        </div>
+        <div class="field"><label for="illum">광원</label>
+          <select id="illum">
+            <option value="d65">D65 (6500 K)</option>
+            <option value="4000">형광등 (4000 K)</option>
+            <option value="2700">백열등 (2700 K)</option>
+          </select></div>
+        <div class="row"><label for="front">전방 조명</label><output id="o-front"></output><input type="range" id="front" min="0" max="1.6" step="0.02" value="1"></div>
+        <div class="row"><label for="back">후방 조명 (투조)</label><output id="o-back"></output><input type="range" id="back" min="0" max="2" step="0.02" value="0"></div>
+      </fieldset>
+
+      <fieldset class="enamel">
+        <legend><b>●</b> 에나멜</legend>
+        <div class="row"><label for="thick">두께 (순측 중앙)</label><output id="o-thick"></output><input type="range" id="thick" min="0.2" max="2" step="0.05" value="0.8"></div>
+        <div class="row"><label for="hyd">수화도 (0 건조 · 1 습윤)</label><output id="o-hyd"></output><input type="range" id="hyd" min="0" max="1" step="0.01" value="1"></div>
+        <div class="row"><label for="scat">산란 (맑음 ↔ 우윳빛)</label><output id="o-scat"></output><input type="range" id="scat" min="0.2" max="2.5" step="0.05" value="1.15"></div>
+        <div class="seg two">
+          <button type="button" id="pClear">맑은 에나멜 · 덴틴 강조</button>
+          <button type="button" id="pMilky">우윳빛 에나멜</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="dentin">
+        <legend><b>●</b> 덴틴</legend>
+        <div class="row"><label for="chroma">chroma</label><output id="o-chroma"></output><input type="range" id="chroma" min="0" max="1.4" step="0.01" value="0.6"></div>
+        <div class="row"><label for="tub">상아세관 밀도</label><output id="o-tub"></output><input type="range" id="tub" min="0" max="1" step="0.01" value="0.5"></div>
+        <div class="row"><label for="bleach">표백 정도</label><output id="o-bleach"></output><input type="range" id="bleach" min="0" max="1" step="0.01" value="0"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>표면</legend>
+        <div class="row"><label for="tex">미세 질감 (perikymata)</label><output id="o-tex"></output><input type="range" id="tex" min="0" max="1.5" step="0.02" value="0.35"></div>
+        <div class="row"><label for="gloss">광택 (0 거침 · 1 폴리싱)</label><output id="o-gloss"></output><input type="range" id="gloss" min="0" max="1" step="0.01" value="0.8"></div>
+        <label class="check"><input type="checkbox" id="cross"> 교차편광 (표면 반사 제거)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>병소와 수복물 (#11)</legend>
+        <div class="field"><label for="lesion">치경부 병소</label>
+          <select id="lesion">
+            <option value="0">없음</option>
+            <option value="1">백색 병소 (탈회)</option>
+            <option value="2">레진 침투 후</option>
+          </select></div>
+        <label class="check"><input type="checkbox" id="patch"> 순측 레진 수복 패치</label>
+        <div class="row"><label for="patchFl">수복물 형광 수준</label><output id="o-patchFl"></output><input type="range" id="patchFl" min="0" max="1" step="0.01" value="0.15"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>장면</legend>
+        <label class="check"><input type="checkbox" id="nb" checked> #21 함께 표시</label>
+        <label class="check"><input type="checkbox" id="sec"> 단면 보기 (#11 근원심 절단)</label>
+        <div class="row"><label for="cut">절단 위치</label><output id="o-cut"></output><input type="range" id="cut" min="-0.25" max="0.25" step="0.01" value="0"></div>
+        <div class="field"><label for="backing">배경</label>
+          <select id="backing">
+            <option value="black">검정 (Cycles와 같음)</option>
+            <option value="dark">구강 (어두움)</option>
+            <option value="white">흰색</option>
+          </select></div>
+        <label class="check"><input type="checkbox" id="compare"> Cycles 원본과 비교</label>
+        <div class="row" id="wipeRow" hidden><label for="wipeX">비교 경계</label><output id="o-wipeX"></output><input type="range" id="wipeX" min="0" max="100" step="1" value="50"></div>
+        <div class="btns">
+          <button type="button" id="front-view">정면 보기</button>
+          <button type="button" id="spin">자동 회전</button>
+          <button type="button" id="reset">값 초기화</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>에나멜 시편 지표 (가시광 모델)</legend>
+        <table id="tbl"></table>
+        <canvas id="spec" aria-label="파장별 반사율과 투과율"></canvas>
+        <div class="legend"><span><i style="background:var(--cool)"></i>반사 (검정 백킹)</span><span><i style="background:var(--accent)"></i>투과</span></div>
+        <p class="note">정성적 모델입니다. TP·OP·L*a*b* 절대값은 임상 측정치를 예측하지 않으며, 변수 간 상대 변화를 보는 용도입니다.</p>
+        <details>
+          <summary>근거와 가정</summary>
+          <ul>
+            <li><b>산란 세기:</b> Fried 등(Appl Opt 34:1278, 1995, doi:10.1364/AO.34.001278)이 543–1053 nm에서 측정한 값(에나멜 μs 15–105 cm⁻¹, g 0.96, 등방성 성분 30–60%; 덴틴 μs≈260 cm⁻¹, g 0.93, μa≈4 cm⁻¹)을 감소 산란계수 μs′=μs[1−(1−f)g]로 환산했습니다. 에나멜 s₀ = 3.5 mm⁻¹(550 nm, 환산 범위 3.4–6.5의 하단), 덴틴 s = 2.3·(550/λ)^0.5 mm⁻¹, 덴틴 흡수는 550 nm에서 약 0.4 mm⁻¹입니다. 에나멜의 λ⁻³ 의존성은 Fried 범위에서 유도한 값(지수 약 2.9)으로, 반사와 투과에 같이 씁니다. 덴틴 지수 0.5는 가정입니다.</li>
+            <li><b>NIR:</b> Darling 등(J Biomed Opt 11:034023, 2006, doi:10.1117/1.2204603)의 1310 nm 건전 에나멜 μs≈3 cm⁻¹, g≈0.96에서 μs′≈0.12 mm⁻¹를 고정값으로 씁니다. NIR에서 덴틴 흡수는 0으로 둡니다(가정).</li>
+            <li><b>지표 기준:</b> TP는 Yu 등(Acta Odontol Scand 67:57, 2009)과 같은 1 mm 에나멜 시편으로 계산하고, 흰 배경 반사율 0.80은 가정입니다. 문헌값은 사람 에나멜 TP 18.7(1 mm), OP 22.9±1.9(Lee & Yu, J Dent 35:690, 2007), 굴절률 에나멜 1.631·덴틴 1.540(Meng 등, J Biomed Opt 2009, doi:10.1117/1.3130322)입니다. 기본값은 젊은 성인 상악 중절치 중간 1/3(법랑질 약 0.8 mm, CBCT PMC11592583)을 가정했습니다.</li>
+            <li><b>형상:</b> 치관 외형과 덴틴 코어는 teeth-11-21.blend의 메시를 그대로 씁니다. 에나멜이 덴틴을 덮는 영역은 실제 덴틴 메시를 렌더한 뒤 에나멜 내 횡방향 산란(약 0.3 mm)만큼 블러해 정합니다. 광학 두께는 순측 중앙 값과 높이별 프로파일로 계산합니다.</li>
+            <li><b>한계:</b> 해석적 근사이며 Monte Carlo가 아닙니다. 이 파일에는 치은과 치수가 없어 치은 산란광과 치수강 단면은 표시하지 않습니다. 조명은 Blender 소프트박스 3개의 방향을 본뜬 절차적 환경입니다.</li>
+          </ul>
+        </details>
+      </fieldset>
+    </form>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), statusEl = $('status');
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+/* ---------- 상태 ---------- */
+const P = { mode: 0, front: 1, back: 0, illum: 'd65', thick: .8, hyd: 1, chroma: .6, tub: .5, bleach: 0, tex: .35, scat: 1.15, gloss: .8,
+  cross: false, nb: true, lesion: 0, patch: false, patchFl: .15, backing: 'black', sec: false, cut: 0 };
+const PRESETS = {
+  refl: { mode: 0, front: 1, back: 0, hint: '<b>반사광</b> 선각(line angle) 쪽은 빛을 비껴 보내 어둡고, 순면 중앙은 창 모양 반사를 만듭니다. 절단연은 어두운 배경 위에서 청회색 오팔 효과를 보입니다. 미세 질감을 올리면 반사가 끊깁니다.' },
+  trans: { mode: 0, front: .05, back: 1.2, hint: '<b>투과광</b> 장파장이 더 투과되어 에나멜만 있는 절단 부위가 주황~갈색으로 비칩니다. 덴틴이 두꺼운 치경부는 빛을 거의 통과시키지 못합니다.' },
+  mix: { mode: 0, front: .6, back: .9, hint: '<b>반사+투과</b> 절단연을 임상에서 볼 때처럼 반사 청색과 투과 주황이 섞입니다. 후방 조명 비율을 바꿔 오팔 효과의 균형을 확인해 보세요.' },
+  uv: { mode: 1, front: 1, back: 0, hint: '<b>UV 형광</b> 덴틴이 청백색 형광을 강하게 내고 에나멜은 약합니다. 형광이 거의 없는 수복물 패치는 검게, 백색 병소는 형광이 줄어 어두운 점으로 보입니다.' },
+  nirR: { mode: 2, front: 1, back: 0, hint: '<b>NIR 반사 (약 1310 nm)</b> 에나멜 산란이 가시광보다 크게 낮아 거의 투명하고, 덴틴이 산란체로 밝게 보입니다. 병소는 산란 증가로 상대적으로 밝아집니다.' },
+  nirT: { mode: 2, front: 0, back: 1.4, hint: '<b>NIR 투조 (약 1310 nm)</b> 에나멜이 거의 투명해 치아 전체가 빛납니다. 병소와 덴틴이 두꺼운 부위는 산란 때문에 어둡게 나타납니다.' },
+};
+const SEC_HINT = '<b>단면</b> #11을 근원심 방향으로 잘라 안쪽을 봅니다. 연한 색이 에나멜, 주황이 덴틴 코어입니다. 절단 위치 슬라이더로 단면을 옮겨 보세요.';
+const ILLUM = { d65: [1, 1, 1], '4000': [1, .86, .68], '2700': [1, .74, .46] };
+const BACK = { dark: .04, white: .95, black: 0 };
+const BGCOL = { dark: '#0d1016', white: '#e8ebf0', black: '#000000' };
+
+/* ---------- 렌더러 ---------- */
+THREE.ColorManagement.enabled = false;   // 셰이더가 직접 감마 출력
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const rtA = new THREE.WebGLRenderTarget(4, 4), rtB = new THREE.WebGLRenderTarget(4, 4);
+/* 화소별 광로 길이(mm): R = 에나멜, G = 덴틴. 뒷면 +깊이, 앞면 −깊이를 더해 시선 방향 두께를 얻음 */
+const fOpt = { type: THREE.HalfFloatType, depthBuffer: false };
+const rtT = new THREE.WebGLRenderTarget(4, 4, fOpt), rtT2 = new THREE.WebGLRenderTarget(4, 4, fOpt);
+const tScene = new THREE.Scene();
+const mkThick = ch => new THREE.ShaderMaterial({
+  uniforms: { uCh: { value: ch }, uRef: { value: 40 } },
+  vertexShader: 'uniform float uRef;varying float vD;void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);vD=-mv.z-uRef;gl_Position=projectionMatrix*mv;}',
+  fragmentShader: 'uniform vec3 uCh;varying float vD;void main(){gl_FragColor=vec4(uCh*(gl_FrontFacing?-vD:vD),0.0);}',
+  side: THREE.DoubleSide, depthTest: false, depthWrite: false,
+  blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+});
+/* 덮인 화소끼리만 평균하는 블러: 외곽에서 광로가 0으로 번져 가짜로 밝아지는 것을 막음 */
+const bMatN = new THREE.ShaderMaterial({
+  uniforms: { tDiffuse: { value: null }, uDir: { value: new THREE.Vector2() } },
+  vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
+  fragmentShader: 'varying vec2 vUv;uniform sampler2D tDiffuse;uniform vec2 uDir;void main(){vec4 c=texture2D(tDiffuse,vUv);if(c.r+c.g<=0.001){gl_FragColor=vec4(0.0);return;}vec4 s=vec4(0.0);float ws=0.0;for(int i=-8;i<=8;i++){float x=float(i)/4.0;vec4 t=texture2D(tDiffuse,vUv+uDir*x);float w=exp(-0.5*x*x)*step(0.001,t.r+t.g);s+=t*w;ws+=w;}gl_FragColor=s/max(ws,1e-4);}',
+  depthTest: false, depthWrite: false,
+});
+const bQuadN = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bMatN), bSceneN = new THREE.Scene(); bSceneN.add(bQuadN);
+const thickE = mkThick(new THREE.Vector3(1, 0, 0)), thickD = mkThick(new THREE.Vector3(0, 1, 0));
+const bScene = new THREE.Scene(), bCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const bMat = new THREE.ShaderMaterial({
+  uniforms: { tDiffuse: { value: null }, uDir: { value: new THREE.Vector2() } },
+  vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
+  fragmentShader: 'varying vec2 vUv;uniform sampler2D tDiffuse;uniform vec2 uDir;void main(){vec4 s=vec4(0.0);float ws=0.0;for(int i=-8;i<=8;i++){float x=float(i)/4.0;float w=exp(-0.5*x*x);s+=texture2D(tDiffuse,vUv+uDir*x)*w;ws+=w;}gl_FragColor=s/ws;}',
+  depthTest: false, depthWrite: false,
+});
+bScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bMat));
+
+/* Cycles 카메라와 같은 정사영: ortho_scale 19 mm, 4:3. 단위 mm */
+const ORTHO_W = 19, ASPECT = 4 / 3;
+const camera = new THREE.OrthographicCamera(-ORTHO_W / 2, ORTHO_W / 2, ORTHO_W / 2 / ASPECT, -ORTHO_W / 2 / ASPECT, 0.1, 200);
+const FRONT_POS = new THREE.Vector3(0, 1.3, 40);
+const FRONT_TARGET = new THREE.Vector3(0, 1.3 - 40 * Math.tan(Math.PI / 2 - 1.538), 0);
+camera.position.copy(FRONT_POS);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(FRONT_TARGET);
+controls.enableDamping = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+controls.minZoom = 0.6; controls.maxZoom = 6; controls.autoRotateSpeed = 1.5;
+controls.update();
+
+/* ---------- 셰이더 ---------- */
+const UNI = `
+uniform float uMode,uT,uHyd,uChroma,uTub,uBleach,uFront,uBackL,uLesion,uPatchOn,uPatchFl,uBacking,uPass,uTex,uGloss,uSpecK,uSec,uCut,uScat,uFlip,uHmm;
+uniform vec3 uIllum,uLam;
+uniform sampler2D uDentin;uniform sampler2D uThick;uniform vec2 uRes;
+`;
+const COMMON = `
+float sq(float x){return x*x;}
+float eprof(float h){return (0.25+1.5*min(h,0.5)+0.5*max(h-0.5,0.0)+1.4*smoothstep(0.88,1.0,h))*smoothstep(0.0,0.03,h);}
+vec3 outc(vec3 c){c=max(c,0.0);c=c/(1.0+0.12*c);return pow(c,vec3(1.0/2.2));}
+float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y);}
+float box(vec2 p,vec2 lo,vec2 hi,float w){vec2 a=smoothstep(lo-w,lo+w,p)*(1.0-smoothstep(hi-w,hi+w,p));return a.x*a.y;}
+/* 절차적 스튜디오 환경: Blender의 Key(좌상, 세로로 긴 박스) · Fill(우측, 좁은 박스) · Top 소프트박스 방향을 본뜸 */
+vec3 envMap(vec3 r,float rough){
+  float w=0.08+rough*1.6;
+  vec3 c=mix(vec3(0.012,0.013,0.016),vec3(0.06,0.07,0.085),smoothstep(-0.5,0.9,r.y));
+  c*=1.0+6.0*uBacking;
+  float fr=smoothstep(0.0,0.35,r.z);
+  vec2 p=r.xy/max(r.z,0.25);
+  float sb=3.4*box(p,vec2(-0.85,-0.25),vec2(-0.35,1.15),w)+2.0*box(p,vec2(0.80,-0.45),vec2(1.10,0.95),w);
+  float top=1.6*smoothstep(0.80-w*0.5,0.92,r.y)*(1.0-smoothstep(0.35,0.6+w,abs(r.x)));
+  return c+fr*sb*vec3(1.0,0.98,0.95)+top*vec3(1.0,0.98,0.95);
+}
+const vec3 LDIR=vec3(-0.47,0.37,0.80);
+`;
+const VS = `
+attribute vec3 aObj;
+uniform float uFlip,uHmm;
+varying vec3 vObj;varying vec3 vN;varying vec3 vV;varying vec3 vTx;varying vec3 vTy;
+void main(){
+  vObj=aObj;vN=normalize(normalMatrix*normal);
+  vTx=normalize(normalMatrix*vec3(uFlip,0.0,0.0));vTy=normalize(normalMatrix*vec3(0.0,-1.0,0.0));
+  vec4 mv=modelViewMatrix*vec4(position,1.0);vV=-mv.xyz;
+  gl_Position=projectionMatrix*mv;
+}`;
+
+/* 에나멜: 산란계수 ~ λ^-3 · (Δn)^2. 덴틴 존재 여부는 블러한 덴틴 렌더 타깃의 알파로 판단 */
+const FS_ENAMEL = `
+varying vec3 vObj;varying vec3 vN;varying vec3 vV;varying vec3 vTx;varying vec3 vTy;
+${UNI}
+${COMMON}
+float MH(vec2 p){
+  float x=p.x,y=1.0-p.y;
+  float wob=vnoise(vec2(x*9.0,y*5.0));
+  float peri=sin(y*210.0+wob*9.0+vnoise(vec2(x*14.0,y*30.0))*5.0)*0.00042*(0.6+0.8*vnoise(vec2(x*6.0,y*18.0)))*(1.0-0.8*smoothstep(0.25,0.9,1.0-y));
+  float imb=sin(y*58.0+wob*4.0)*0.0010*smoothstep(0.6,1.0,y);
+  float vert=sin(x*150.0+vnoise(vec2(x*30.0,y*6.0))*5.0)*0.0002;
+  float peel=(vnoise(p*70.0)-0.5)*0.0012+(vnoise(p*160.0)-0.5)*0.0003;
+  return peri+imb+vert+peel;
+}
+void main(){
+  vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;
+  vec3 V=normalize(vV);
+  vec3 L=normalize(LDIR);
+  vec2 p=vObj.xy;
+  if(uSec>0.5){ /* 단면: 절단면 쪽 제거, 남은 반쪽은 불투명 에나멜 */
+    if(vObj.x>uCut)discard;
+    float sh=gl_FrontFacing?mix(0.55,1.0,max(dot(N,L),0.0)):0.92;
+    gl_FragColor=vec4(vec3(0.93,0.91,0.84)*sh,1.0);return;
+  }
+  float lod=1.0-smoothstep(0.0022,0.009,length(fwidth(p)));
+  float labW=mix(0.4,1.0,smoothstep(-0.04,0.08,vObj.z));
+  float e=0.002;
+  float gx=(MH(p+vec2(e,0.0))-MH(p-vec2(e,0.0)))/(2.0*e);
+  float gy=(MH(p+vec2(0.0,e))-MH(p-vec2(0.0,e)))/(2.0*e);
+  N=normalize(N-uTex*lod*labW*(gx*vTx+gy*vTy));
+  float NV=clamp(dot(N,V),0.0,1.0);
+  float dif=max(dot(N,L),0.0);
+  float shade=mix(0.50,1.0,pow(dif,0.85));
+  float rough=mix(0.40,0.05,uGloss)*mix(1.25,1.0,uHyd);
+  float Fr=0.057+0.943*pow(1.0-NV,5.0);
+  vec3 envR=envMap(reflect(-V,N),rough)*uIllum*Fr*mix(0.3,1.0,uGloss)*mix(0.55,1.0,uHyd)*uSpecK;
+  bool uv=(uMode>0.5&&uMode<1.5);
+  bool nir=(uMode>1.5);
+  float xo=vObj.x;
+  float hh=clamp(vObj.y,0.0,1.0);
+
+  vec4 bl=texture2D(uDentin,gl_FragCoord.xy/uRes);
+  float d=clamp(bl.a*1.15,0.0,1.0);                 /* 이 화소 뒤에 덴틴이 있는 정도 */
+
+  float lab=smoothstep(0.0,0.12,vObj.z);
+  float pm=uPatchOn*(1.0-smoothstep(0.065,0.10,length((vObj.xy-vec2(0.12,0.60))*vec2(1.0,0.8))))*lab;
+  float lm=(1.0-smoothstep(0.05,0.085,length(vObj.xy-vec2(-0.12,0.22))))*lab;
+  float lesion=(uLesion>0.5)?lm:0.0;
+
+  float T=uT*eprof(hh);
+  float sf=pow(mix(0.63,0.30,uHyd)/0.30,2.0)*uScat;
+  vec3 base=3.5*pow(550.0/uLam,vec3(3.0));
+  vec3 baseR=base; /* v2: 반사·투과 동일 λ⁻³ */
+  if(nir){base=vec3(0.12);baseR=base;} /* v2: Darling 2006 μs≈3 cm⁻¹, g 0.96, 등방 36% → μs'≈0.12 mm⁻¹ */
+  float lmul=(uLesion>1.5)?(1.0+0.25*lesion):(1.0+lesion*(1.6+4.0*(1.0-uHyd)));
+  vec3 s=mix(base*sf*lmul,base*0.55,pm);
+  vec3 sR=mix(baseR*sf*lmul,baseR*0.55,pm);
+  vec3 a=s*T;
+  vec3 aR=sR*T;
+  vec3 Re=0.30*aR/(1.0+0.9*aR)*vec3(1.0,0.92,0.78)*(1.0+1.2*pow(1.0-NV,2.5));
+  vec3 Td=exp(-0.18*a);
+
+  float chG=mix(1.35,0.65,smoothstep(0.0,0.85,hh));
+  float ch=clamp(uChroma*(1.0-0.6*uBleach)*chG,0.0,1.4);
+  float ao=mix(0.70,1.0,smoothstep(0.0,0.06,hh));
+
+  vec3 col;
+  if(uv){
+    float fl=mix(0.10*clamp(T,0.0,2.0),uPatchFl,pm);
+    col=uFront*(fl*vec3(0.30,0.52,1.0)*shade*ao+vec3(0.05,0.02,0.09)*shade);
+  }else{
+    float grM=exp(-sq((xo+0.13)/0.035))*smoothstep(0.08,0.4,hh);
+    float grD=exp(-sq((xo-0.12)/0.05))*smoothstep(0.25,0.55,hh);
+    float ridgeTone=1.0-0.13*grM-0.08*grD+0.03*exp(-sq(xo/0.07));
+    vec3 refl=uIllum*Re*shade*ao*ridgeTone+uIllum*vec3(1.0,0.96,0.90)*0.45*pow(1.0-NV,3.0)*(0.5+0.5*dif);
+    /* 투과: 메시에서 잰 시선 방향 광로. 에나멜은 순측+설측 두 벽, 덴틴은 횡방향 확산으로 유효 경로를 0.8배로 */
+    vec2 th=max(texture2D(uThick,gl_FragCoord.xy/uRes).rg,0.0);
+    float pathE=th.r*uT/0.8;
+    float pathD=th.g*0.8;
+    vec3 sd=2.3*pow(550.0/uLam,vec3(0.5)); /* v2: Fried 1995 μs'≈2.3 mm⁻¹ */
+    vec3 kabs=nir?vec3(0.0):vec3(0.12,0.30,0.75)*(0.4+ch)*1.5; /* v2: G≈0.40 mm⁻¹ @ch .5 (Fried μa≈4 cm⁻¹) */
+    vec3 trans=uIllum*exp(-0.30*s*pathE)*exp(-(sd+kabs)*pathD)*1.5*(0.35+0.65*NV);
+    col=uFront*refl+uBackL*trans*uPass+0.015;
+    if(nir){float g=col.g;col=vec3(g)*vec3(1.0,0.86,0.80);}
+  }
+  float tg=dot(Td*Td,vec3(0.2126,0.7152,0.0722));
+  tg=pow(tg,1.0/(0.6+0.4*NV));
+  float al=clamp(max(1.0-tg,0.04+Fr*0.25),0.0,1.0);
+  if(uv){float dk=(uLesion>1.5)?0.15*lesion:0.55*lesion;al=clamp(0.06+pm*0.94+dk,0.0,1.0);}
+  vec3 spec=envR*uFront*uPass*(uv?0.05:1.0);
+  if(nir)spec=vec3(dot(spec,vec3(0.333)));
+  float trf=(uPass>0.5)?(1.0-al):0.0;
+  vec3 rgb=outc(col/al)*al+trf*bl.rgb+outc(spec);
+  float aout=(uPass>0.5)?(1.0-trf*(1.0-bl.a)):al;
+  gl_FragColor=vec4(rgb,aout);
+}`;
+
+/* 덴틴 코어 (Blender 덴틴 메시). 평소엔 렌더 타깃에만 그려져 에나멜을 통해 비침 */
+const FS_DENTIN = `
+varying vec3 vObj;varying vec3 vN;varying vec3 vV;varying vec3 vTx;varying vec3 vTy;
+${UNI}
+${COMMON}
+void main(){
+  if(uSec>0.5){
+    if(vObj.x>uCut)discard;
+    if(gl_FrontFacing)discard;
+    gl_FragColor=vec4(0.88,0.67,0.36,1.0);return;
+  }
+  if(!gl_FrontFacing)discard;
+  vec3 N=normalize(vN);
+  float shade=mix(0.50,1.0,pow(max(dot(N,normalize(LDIR)),0.0),0.85));
+  bool uv=(uMode>0.5&&uMode<1.5);
+  bool nir=(uMode>1.5);
+  float hh=clamp(vObj.y,0.0,1.0);
+  float T=uT*eprof(hh);
+  float sf=pow(mix(0.63,0.30,uHyd)/0.30,2.0)*uScat;
+  vec3 base=3.5*pow(550.0/uLam,vec3(3.0));
+  if(nir)base=vec3(0.12);
+  vec3 Td2=exp(-0.36*base*sf*T);
+  vec3 chrom=Td2/(dot(Td2,vec3(0.2126,0.7152,0.0722))+0.001);
+  float chG=mix(1.05,0.70,smoothstep(0.0,0.85,hh));
+  float ch=clamp(uChroma*(1.0-0.6*uBleach)*chG,0.0,1.4);
+  vec3 D=mix(vec3(0.93,0.83,0.69),vec3(0.97,0.72,0.40),min(ch,1.0))*mix(0.9,1.08,uTub)*(1.0+0.12*uBleach)*mix(0.78,1.0,smoothstep(0.0,0.4,hh));
+  D=mix(D,vec3(0.34,0.17,0.06),clamp((ch-0.95)/0.45,0.0,1.0));
+  if(nir)D=vec3(0.90)*mix(0.85,1.05,uTub);
+  float ao=mix(0.70,1.0,smoothstep(0.0,0.06,hh));
+  vec3 col;
+  if(uv){
+    float fl=exp(-0.08*T)*(1.0-0.15*uBleach);
+    col=uFront*(fl*vec3(0.30,0.52,1.0)*shade*ao+vec3(0.05,0.02,0.09)*shade);
+  }else{
+    float NVd=clamp(dot(N,normalize(vV)),0.0,1.0);
+    vec3 dc=D*chrom;
+    dc=mix(vec3(dot(dc,vec3(0.3333)))*0.85,dc,smoothstep(0.05,0.65,NVd));
+    col=uFront*uIllum*dc*shade*ao+0.01;
+    if(nir){float g=col.g;col=vec3(g)*vec3(1.0,0.86,0.80);}
+  }
+  gl_FragColor=vec4(outc(col),1.0);
+}`;
+
+/* 공통 uniform. 치아별로 패치·병소·좌우 방향만 다름 */
+const U = {
+  uPass: { value: 1 }, uMode: { value: 0 }, uT: { value: .8 }, uHyd: { value: 1 }, uChroma: { value: .5 }, uTub: { value: .5 }, uBleach: { value: 0 },
+  uFront: { value: 1 }, uBackL: { value: 0 }, uLesion: { value: 0 }, uPatchOn: { value: 0 }, uPatchFl: { value: .15 }, uBacking: { value: 0 },
+  uScat: { value: 1 }, uTex: { value: .35 }, uGloss: { value: .8 }, uSpecK: { value: 1 }, uSec: { value: 0 }, uCut: { value: 0 },
+  uFlip: { value: -1 }, uHmm: { value: 10 },
+  uIllum: { value: new THREE.Vector3(1, 1, 1) }, uLam: { value: new THREE.Vector3(610, 550, 460) },
+  uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
+};
+const U21 = Object.assign({}, U, { uLesion: { value: 0 }, uPatchOn: { value: 0 }, uSec: { value: 0 }, uFlip: { value: 1 } });
+const withPass = (u, pass) => Object.assign({}, u, { uPass: { value: pass } });
+const blend = { transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation };
+const mkEnamel = (u, side, dw) => new THREE.ShaderMaterial(Object.assign({ uniforms: u, vertexShader: VS, fragmentShader: FS_ENAMEL, side, depthWrite: dw }, blend));
+const mkDentin = u => new THREE.ShaderMaterial({ uniforms: u, vertexShader: VS, fragmentShader: FS_DENTIN, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+const MATS = {
+  '11': { back: mkEnamel(withPass(U, 0), THREE.BackSide, true), front: mkEnamel(U, THREE.FrontSide, false), dentin: mkDentin(U) },
+  '21': { back: mkEnamel(withPass(U21, 0), THREE.BackSide, true), front: mkEnamel(U21, THREE.FrontSide, false), dentin: mkDentin(U21) },
+};
+const TEETH = { '11': [], '21': [] }, DENTIN = [];
+let BOX11 = null;
+
+/* ---------- 메시 불러오기 (m → mm로 정점에 굽기) ---------- */
+const MM = new THREE.Matrix4().makeScale(1000, 1000, 1000);
+const showError = err => { statusEl.hidden = false; statusEl.textContent = '모델을 불러오지 못했습니다: ' + (err?.message ?? err); };
+fetch('teeth-glb.txt').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); }).then(b64 => {
+  const bin = Uint8Array.from(atob(b64.trim()), c => c.charCodeAt(0));
+  new GLTFLoader().parse(bin.buffer, '', gltf => {
+    gltf.scene.updateMatrixWorld(true);
+    const parts = [];
+    gltf.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const geo = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(MM, o.matrixWorld));
+      parts.push({ tooth: o.name.startsWith('21') ? '21' : '11', dentin: /dentin/i.test(o.name), geo });
+    });
+    /* 치아별 기준 좌표: 에나멜 외형 박스. x는 근심이 음수(치관 높이 10.5 mm 단위), y는 0 치경부 → 1 절단연, z는 순측이 양수 */
+    const boxes = {};
+    for (const p of parts) if (!p.dentin) { p.geo.computeBoundingBox(); boxes[p.tooth] = p.geo.boundingBox.clone(); }
+    for (const p of parts) {
+      const b = boxes[p.tooth], cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, H = b.max.y - b.min.y;
+      const flip = cx < 0 ? -1 : 1, pos = p.geo.attributes.position, A = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        A[i * 3] = flip * (pos.getX(i) - cx) / 10.5;
+        A[i * 3 + 1] = (b.max.y - pos.getY(i)) / H;
+        A[i * 3 + 2] = (pos.getZ(i) - cz) / 10.5;
+      }
+      p.geo.setAttribute('aObj', new THREE.BufferAttribute(A, 3));
+      const m = MATS[p.tooth];
+      if (p.dentin) {
+        const d = new THREE.Mesh(p.geo, m.dentin); d.layers.set(1); d.userData.tooth = p.tooth;
+        DENTIN.push(d); TEETH[p.tooth].push(d); scene.add(d);
+        const t = new THREE.Mesh(p.geo, thickD); TEETH[p.tooth].push(t); tScene.add(t);
+      } else {
+        const mb = new THREE.Mesh(p.geo, m.back); mb.renderOrder = 0;
+        const mf = new THREE.Mesh(p.geo, m.front); mf.renderOrder = 1;
+        TEETH[p.tooth].push(mb, mf); scene.add(mb, mf);
+        const t = new THREE.Mesh(p.geo, thickE); TEETH[p.tooth].push(t); tScene.add(t);
+      }
+    }
+    BOX11 = boxes['11'];
+    statusEl.hidden = true;
+    apply();
+  }, showError);
+}).catch(showError);
+
+/* ---------- 시점 ---------- */
+function setView(pos, target) {
+  camera.position.copy(pos); camera.zoom = 1; camera.updateProjectionMatrix();
+  controls.target.copy(target); controls.update();
+}
+const frontView = () => setView(FRONT_POS, FRONT_TARGET);
+function sideView() {
+  if (!BOX11) return;
+  const c = BOX11.getCenter(new THREE.Vector3());
+  setView(new THREE.Vector3(c.x - 40, c.y, c.z), c);   // #11의 원심 쪽에서 절단면을 봄
+}
+
+/* ---------- 적용 ---------- */
+function apply() {
+  const u = U;
+  u.uMode.value = P.mode; u.uT.value = P.thick; u.uHyd.value = P.hyd; u.uChroma.value = P.chroma; u.uTub.value = P.tub;
+  u.uBleach.value = P.bleach; u.uFront.value = P.front; u.uBackL.value = P.back; u.uLesion.value = P.lesion;
+  u.uPatchOn.value = P.patch ? 1 : 0; u.uPatchFl.value = P.patchFl; u.uBacking.value = BACK[P.backing];
+  u.uScat.value = P.scat; u.uSec.value = P.sec ? 1 : 0; u.uCut.value = P.cut; u.uTex.value = P.tex; u.uGloss.value = P.gloss; u.uSpecK.value = P.cross ? 0 : 1;
+  const il = P.mode === 2 ? [1, 1, 1] : ILLUM[P.illum]; u.uIllum.value.set(...il);
+  if (P.mode === 2) u.uLam.value.set(1310, 1310, 1310); else u.uLam.value.set(610, 550, 460);
+  const bg = P.mode === 1 ? '#04020a' : BGCOL[P.backing];
+  scene.background = new THREE.Color(bg); stage.style.background = bg;
+  $('illum').disabled = P.mode !== 0;
+
+  TEETH['21'].forEach(m => (m.visible = P.nb && !P.sec));
+  DENTIN.forEach(d => d.layers.set(P.sec ? 0 : 1));
+
+  const cmp = $('compare').checked;
+  for (const id of ['ref', 'wipe', 'tagL', 'tagR', 'wipeRow']) $(id).hidden = !cmp;
+  const x = +$('wipeX').value;
+  $('ref').style.clipPath = `inset(0 0 0 ${x}%)`;
+  $('wipe').style.left = `${x}%`;
+  readout();
+}
+
+/* ---------- 수치 모델 (셰이더와 같은 식) ---------- */
+function enamelRT(lam, T, hyd) {
+  const dn = .63 + (.30 - .63) * hyd, sf = Math.pow(dn / .30, 2);
+  const s = (lam > 1000 ? 0.12 : 3.5 * Math.pow(550 / lam, 3)) * sf * P.scat, a = s * T, aR = s * T; /* v2: 반사·투과 동일 λ⁻³ */
+  return { s, Re: .30 * aR / (1 + .9 * aR), Td: Math.exp(-.18 * a) };
+}
+function lab(r, g, b) {
+  r = Math.max(0, r); g = Math.max(0, g); b = Math.max(0, b);
+  const X = .4124 * r + .3576 * g + .1805 * b, Y = .2126 * r + .7152 * g + .0722 * b, Z = .0193 * r + .1192 * g + .9505 * b;
+  const f = t => t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  const fx = f(X / .9505), fy = f(Y), fz = f(Z / 1.089);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+const f1 = x => (x >= 0 ? '' : '−') + Math.abs(x).toFixed(1);
+const labStr = v => `${v[0].toFixed(1)} / ${f1(v[1])} / ${f1(v[2])}`;
+function readout() {
+  const e = [610, 550, 460].map(l => enamelRT(l, P.thick, P.hyd));
+  const Rb = e.map(x => x.Re), Tt = e.map(x => x.Td);
+  const Lb = lab(...Rb), Lt = lab(...Tt);
+  /* v2: TP는 Yu 2009와 같은 1.0 mm 에나멜 시편, 흰 배경 반사율 0.80(가정) 기준 */
+  const e1 = [610, 550, 460].map(l => enamelRT(l, 1.0, P.hyd));
+  const Lb1 = lab(...e1.map(x => x.Re)), Lw1 = lab(...e1.map(x => x.Re + x.Td * x.Td * 0.80));
+  const TP = Math.hypot(Lw1[0] - Lb1[0], Lw1[1] - Lb1[1], Lw1[2] - Lb1[2]);
+  const OP = Math.hypot(Lt[1] - Lb[1], Lt[2] - Lb[2]);
+  const ch = Math.min(1, clamp(P.chroma * (1 - .6 * P.bleach) * (1.05 - .35 * ss(0, .85, .5)), 0, 1.4));
+  const pale = [.93, .83, .69], sat = [.97, .72, .40], k = (.9 + (1.08 - .9) * P.tub) * (1 + .12 * P.bleach);
+  const body = e.map((x, i) => x.Re + x.Td * x.Td * (pale[i] + (sat[i] - pale[i]) * ch) * k);
+  $('tbl').innerHTML =
+    `<tr><th>TP (1 mm 시편, 백/흑)</th><td>${TP.toFixed(1)}</td></tr>` +
+    `<tr><th>OP (투과−반사 a*b* 차)</th><td>${OP.toFixed(1)}</td></tr>` +
+    `<tr><th>반사(흑) L* / a* / b*</th><td>${labStr(Lb)}</td></tr>` +
+    `<tr><th>투과 L* / a* / b*</th><td>${labStr(Lt)}</td></tr>` +
+    `<tr><th>체부 색 L* / a* / b*</th><td>${labStr(lab(...body))}</td></tr>` +
+    `<tr><th>산란계수 460 / 610 nm</th><td>${e[2].s.toFixed(1)} / ${e[0].s.toFixed(1)} mm⁻¹</td></tr>`;
+  drawSpec();
+}
+const spec = $('spec');
+function drawSpec() {
+  const dpr = devicePixelRatio || 1, w = spec.clientWidth, H = spec.clientHeight;
+  if (!w) return;
+  spec.width = w * dpr; spec.height = H * dpr;
+  const x = spec.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, H);
+  const css = getComputedStyle(document.documentElement), tok = n => css.getPropertyValue(n).trim();
+  const L = 30, R = 6, Tp = 8, B = 22, pw = w - L - R, ph = H - Tp - B;
+  const X = l => L + (l - 400) / 300 * pw, Y = v => Tp + (1 - v) * ph;
+  x.font = '11px ' + tok('--mono'); x.fillStyle = tok('--muted'); x.strokeStyle = tok('--line'); x.lineWidth = 1;
+  for (let v = 0; v <= 1.001; v += .25) { x.beginPath(); x.moveTo(L, Y(v)); x.lineTo(w - R, Y(v)); x.stroke(); x.textAlign = 'right'; x.fillText(v.toFixed(2), L - 4, Y(v) + 4); }
+  x.textAlign = 'center';
+  for (let l = 400; l <= 700; l += 100) x.fillText(l + ' nm', clamp(X(l), L + 18, w - R - 20), H - 6);
+  const plot = (fn, c) => { x.beginPath(); for (let l = 400; l <= 700; l += 5) { const v = fn(enamelRT(l, P.thick, P.hyd)); l === 400 ? x.moveTo(X(l), Y(v)) : x.lineTo(X(l), Y(v)); } x.strokeStyle = c; x.lineWidth = 2; x.stroke(); };
+  plot(o => o.Re, tok('--cool')); plot(o => o.Td, tok('--accent'));
+}
+addEventListener('resize', drawSpec);
+
+/* ---------- UI 바인딩 ---------- */
+const fmt = { front: v => v.toFixed(2), back: v => v.toFixed(2), thick: v => v.toFixed(2) + ' mm', hyd: v => v.toFixed(2), chroma: v => v.toFixed(2),
+  tub: v => v.toFixed(2), bleach: v => v.toFixed(2), tex: v => v.toFixed(2), scat: v => v.toFixed(2), gloss: v => v.toFixed(2), patchFl: v => v.toFixed(2),
+  cut: v => (v * 10.5 >= 0 ? '+' : '−') + Math.abs(v * 10.5).toFixed(1) + ' mm', wipeX: v => `${v}%` };
+const DEFAULTS = {};
+document.querySelectorAll('#panel input, #panel select').forEach(el => (DEFAULTS[el.id] = el.type === 'checkbox' ? el.checked : el.value));
+function setS(o) {
+  for (const k in o) { P[k] = o[k]; const el = $(k); if (el) el.value = o[k]; const out = $('o-' + k); if (out) out.textContent = fmt[k](+o[k]); }
+  apply();
+}
+for (const id in fmt) {
+  const el = $(id), out = $('o-' + id);
+  out.textContent = fmt[id](+el.value);
+  el.addEventListener('input', () => { if (id in P) P[id] = +el.value; out.textContent = fmt[id](+el.value); apply(); });
+}
+$('pClear').onclick = () => setS({ scat: .3, thick: 1.3, chroma: 1.4 });
+$('pMilky').onclick = () => setS({ scat: 1.6, thick: .9, chroma: .5 });
+$('illum').onchange = e => { P.illum = e.target.value; apply(); };
+$('lesion').onchange = e => { P.lesion = +e.target.value; apply(); };
+$('backing').onchange = e => { P.backing = e.target.value; apply(); };
+for (const id of ['patch', 'cross', 'nb']) $(id).onchange = e => { P[id] = e.target.checked; apply(); };
+$('compare').onchange = () => {
+  if ($('compare').checked) { if (P.sec) { $('sec').checked = false; P.sec = false; } frontView(); controls.autoRotate = false; $('spin').textContent = '자동 회전'; }
+  apply();
+};
+
+let curPreset = 'refl';
+const setHint = () => ($('hint').innerHTML = P.sec ? SEC_HINT : PRESETS[curPreset].hint);
+document.querySelectorAll('#presets button').forEach(b => b.addEventListener('click', () => {
+  const p = PRESETS[b.dataset.p];
+  curPreset = b.dataset.p;
+  document.querySelectorAll('#presets button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  setS({ mode: p.mode, front: p.front, back: p.back });
+  setHint();
+}));
+$('sec').onchange = e => {
+  P.sec = e.target.checked;
+  if (P.sec) { $('compare').checked = false; sideView(); } else frontView();
+  setHint(); apply();
+};
+$('front-view').onclick = frontView;
+$('spin').onclick = () => { controls.autoRotate = !controls.autoRotate; $('spin').textContent = controls.autoRotate ? '회전 멈춤' : '자동 회전'; };
+$('reset').onclick = () => {
+  for (const id in DEFAULTS) { const el = $(id); el.type === 'checkbox' ? (el.checked = DEFAULTS[id]) : (el.value = DEFAULTS[id]); }
+  Object.assign(P, { mode: 0, front: 1, back: 0, illum: 'd65', thick: .8, hyd: 1, chroma: .6, tub: .5, bleach: 0, tex: .35, scat: 1.15, gloss: .8,
+    cross: false, nb: true, lesion: 0, patch: false, patchFl: .15, backing: 'black', sec: false, cut: 0 });
+  for (const id in fmt) $('o-' + id).textContent = fmt[id](+$(id).value);
+  document.querySelectorAll('#presets button').forEach(x => x.setAttribute('aria-pressed', x.dataset.p === 'refl' ? 'true' : 'false'));
+  curPreset = 'refl'; setHint(); frontView(); apply();
+};
+setHint();
+apply();
+
+/* ---------- 크기 · 루프 ---------- */
+function resize() {
+  renderer.setSize(stage.clientWidth, stage.clientHeight, false);
+  const v = renderer.getDrawingBufferSize(new THREE.Vector2());
+  for (const rt of [rtA, rtB, rtT, rtT2]) rt.setSize(v.x, v.y);
+  U.uRes.value.copy(v);
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+const bufSize = new THREE.Vector2();
+function drawFrame() {
+  const bg = scene.background;
+  if (!P.sec) { /* 1) 덴틴만 렌더 타깃에  2) 가우시안 블러 = 에나멜 내 횡방향 산란 */
+    camera.layers.set(1); scene.background = null; renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(scene, camera);
+    renderer.getDrawingBufferSize(bufSize);
+    const pxPerMm = bufSize.y * camera.zoom / (camera.top - camera.bottom);
+    const sig = pxPerMm * .045 * 10.5 * (.5 + P.thick) * Math.min(1.4, Math.pow(P.scat, .7)) * (P.mode === 2 ? .35 : 1);
+    bMat.uniforms.tDiffuse.value = rtA.texture; bMat.uniforms.uDir.value.set(sig / bufSize.x, 0);
+    renderer.setRenderTarget(rtB); renderer.render(bScene, bCam);
+    bMat.uniforms.tDiffuse.value = rtB.texture; bMat.uniforms.uDir.value.set(0, sig / bufSize.y);
+    renderer.setRenderTarget(rtA); renderer.render(bScene, bCam);
+    /* 3) 광로 길이 지도 (에나멜·덴틴), 같은 산란 폭으로 블러 */
+    camera.layers.set(0);
+    const ref = camera.position.distanceTo(controls.target);
+    thickE.uniforms.uRef.value = thickD.uniforms.uRef.value = ref;
+    renderer.setRenderTarget(rtT); renderer.clear(); renderer.render(tScene, camera);
+    bMatN.uniforms.tDiffuse.value = rtT.texture; bMatN.uniforms.uDir.value.set(sig / bufSize.x, 0);
+    renderer.setRenderTarget(rtT2); renderer.render(bSceneN, bCam);
+    bMatN.uniforms.tDiffuse.value = rtT2.texture; bMatN.uniforms.uDir.value.set(0, sig / bufSize.y);
+    renderer.setRenderTarget(rtT); renderer.render(bSceneN, bCam);
+  }
+  camera.layers.set(0); scene.background = bg; renderer.setRenderTarget(null); renderer.setClearColor(0x000000, 1);
+  renderer.render(scene, camera);
+}
+renderer.setAnimationLoop(() => { controls.update(); drawFrame(); });
+</script>
+
+</body></html>
