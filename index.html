@@ -105,7 +105,16 @@ details li { margin-bottom: 6px; }
           <button type="button" data-p="uv" aria-pressed="false">UV 형광</button>
           <button type="button" data-p="nirR" aria-pressed="false">NIR 반사</button>
           <button type="button" data-p="nirT" aria-pressed="false">NIR 투조</button>
+          <button type="button" data-p="xpol" aria-pressed="false">교차편광</button>
         </div>
+        <div class="field"><label for="shade">셰이드 (반사 순측 중앙 1/3 목표)</label>
+          <select id="shade">
+            <option value="A1">VITA A1</option><option value="A2" selected>VITA A2</option><option value="A3">VITA A3</option>
+            <option value="B1">VITA B1</option><option value="B2">VITA B2</option><option value="NAT">자연치 사진 (교차편광 측정)</option>
+          </select></div>
+        <div class="row"><label for="shL">셰이드 L* 오프셋 (밝기)</label><output id="o-shL"></output><input type="range" id="shL" min="-10" max="10" step="0.5" value="0"></div>
+        <div class="row"><label for="shA">셰이드 a* 오프셋 (적↔녹)</label><output id="o-shA"></output><input type="range" id="shA" min="-5" max="5" step="0.25" value="0"></div>
+        <div class="row"><label for="shB">셰이드 b* 오프셋 (황색도)</label><output id="o-shB"></output><input type="range" id="shB" min="-10" max="10" step="0.5" value="0"></div>
         <div class="field"><label for="illum">광원</label>
           <select id="illum">
             <option value="d65">D65 (6500 K)</option>
@@ -138,7 +147,7 @@ details li { margin-bottom: 6px; }
         <legend>표면</legend>
         <div class="row"><label for="tex">미세 질감 (perikymata)</label><output id="o-tex"></output><input type="range" id="tex" min="0" max="1.5" step="0.02" value="0.35"></div>
         <div class="row"><label for="gloss">광택 (0 거침 · 1 폴리싱)</label><output id="o-gloss"></output><input type="range" id="gloss" min="0" max="1" step="0.01" value="0.8"></div>
-        <label class="check"><input type="checkbox" id="cross"> 교차편광 (표면 반사 제거)</label>
+        <label class="check"><input type="checkbox" id="cross"> 교차편광 (표면 반사·프레넬 제거)</label>
       </fieldset>
 
       <fieldset>
@@ -176,6 +185,7 @@ details li { margin-bottom: 6px; }
       <fieldset>
         <legend>에나멜 시편 지표 (가시광 모델)</legend>
         <table id="tbl"></table>
+        <p class="note" id="shadeOut"></p>
         <canvas id="spec" aria-label="파장별 반사율과 투과율"></canvas>
         <div class="legend"><span><i style="background:var(--cool)"></i>반사 (검정 백킹)</span><span><i style="background:var(--accent)"></i>투과</span></div>
         <p class="note">정성적 모델입니다. TP·OP·L*a*b* 절대값은 임상 측정치를 예측하지 않으며, 변수 간 상대 변화를 보는 용도입니다.</p>
@@ -183,6 +193,7 @@ details li { margin-bottom: 6px; }
           <summary>근거와 가정</summary>
           <ul>
             <li><b>산란 세기:</b> Fried 등(Appl Opt 34:1278, 1995, doi:10.1364/AO.34.001278)이 543–1053 nm에서 측정한 값(에나멜 μs 15–105 cm⁻¹, g 0.96, 등방성 성분 30–60%; 덴틴 μs≈260 cm⁻¹, g 0.93, μa≈4 cm⁻¹)을 감소 산란계수 μs′=μs[1−(1−f)g]로 환산했습니다. 에나멜 s₀ = 3.5 mm⁻¹(550 nm, 환산 범위 3.4–6.5의 하단), 덴틴 s = 2.3·(550/λ)^0.5 mm⁻¹, 덴틴 흡수는 550 nm에서 약 0.4 mm⁻¹입니다. 에나멜의 λ⁻³ 의존성은 Fried 범위에서 유도한 값(지수 약 2.9)으로, 반사와 투과에 같이 씁니다. 덴틴 지수 0.5는 가정입니다.</li>
+            <li><b>셰이드 목표 (v5.4):</b> A1 83.4/−0.3/14.2, A2 81.3/1.8/19.2, A3 76.6/2.1/19.1 — VITA Easyshade로 VITA Classical 탭 중앙 측정(Stoma Edu J 2024, stomaeduj.com/wp-content/uploads/2024/01/Article_11_1-2_3.pdf). B1 78.9/−1.8/12.3, B2 76.7/−1.6/16.6 — O'Brien 등(J Dent Res 69:1762, 1990)의 번역표, Khashayar 등(Oper Dent 36:2011)에서 재인용(원문 미확인, 기기 다름 → A 계열과 직접 비교 불확실). 자연치 79.0/3.3/9.4 — 교차편광·회색카드 임상 사진 2장의 측정 평균(PMC8501868 Fig 2, Hein 2021 Fig 12; JPEG·소표본·1명은 미백 후). 기기 간 같은 탭도 ΔE00≈2 차이(Int J Prosthodont 2023). 렌더 게인은 헤드리스 렌더의 순측 중앙 1/3 화소 Lab로 보정했고, 위 TP·OP·체부 색 판독값(모델 계산)과는 별개입니다.</li>
             <li><b>NIR:</b> Darling 등(J Biomed Opt 11:034023, 2006, doi:10.1117/1.2204603)의 1310 nm 건전 에나멜 μs≈3 cm⁻¹, g≈0.96에서 μs′≈0.12 mm⁻¹를 고정값으로 씁니다. NIR에서 덴틴 흡수는 0으로 둡니다(가정).</li>
             <li><b>지표 기준:</b> TP는 Yu 등(Acta Odontol Scand 67:57, 2009)과 같은 1 mm 에나멜 시편으로 계산하고, 흰 배경 반사율 0.80은 가정입니다. 문헌값은 사람 에나멜 TP 18.7(1 mm), OP 22.9±1.9(Lee & Yu, J Dent 35:690, 2007), 굴절률 에나멜 1.631·덴틴 1.540(Meng 등, J Biomed Opt 2009, doi:10.1117/1.3130322)입니다. 기본값은 젊은 성인 상악 중절치 중간 1/3(법랑질 약 0.8 mm, CBCT PMC11592583)을 가정했습니다.</li>
             <li><b>형상:</b> 치관 외형과 덴틴 코어는 teeth-11-21.blend의 메시를 그대로 씁니다. 에나멜이 덴틴을 덮는 영역은 실제 덴틴 메시를 렌더한 뒤 에나멜 내 횡방향 산란(약 0.3 mm)만큼 블러해 정합니다. 광학 두께는 순측 중앙 값과 높이별 프로파일로 계산합니다.</li>
@@ -212,15 +223,34 @@ const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t
 
 /* ---------- 상태 ---------- */
 const P = { mode: 0, front: 1, back: 0, illum: 'd65', thick: .8, hyd: 1, chroma: .6, tub: .5, bleach: 0, tex: .35, scat: 1.15, gloss: .8,
-  cross: false, nb: true, lesion: 0, patch: false, patchFl: .15, backing: 'black', sec: false, cut: 0 };
+  cross: false, nb: true, lesion: 0, patch: false, patchFl: .15, backing: 'black', sec: false, cut: 0, shade: 'A2', shL: 0, shA: 0, shB: 0 };
 const PRESETS = {
   refl: { mode: 0, front: 1, back: 0, hint: '<b>반사광</b> 선각(line angle) 쪽은 빛을 비껴 보내 어둡고, 순면 중앙은 창 모양 반사를 만듭니다. 절단연은 어두운 배경 위에서 청회색 오팔 효과를 보입니다. 미세 질감을 올리면 반사가 끊깁니다.' },
   trans: { mode: 0, front: .05, back: 1.2, hint: '<b>투과광</b> 장파장이 더 투과되어 에나멜만 있는 절단 부위가 주황~갈색으로 비칩니다. 덴틴이 두꺼운 치경부는 빛을 거의 통과시키지 못합니다.' },
   mix: { mode: 0, front: .6, back: .9, hint: '<b>반사+투과</b> 절단연을 임상에서 볼 때처럼 반사 청색과 투과 주황이 섞입니다. 후방 조명 비율을 바꿔 오팔 효과의 균형을 확인해 보세요.' },
   uv: { mode: 1, front: 1, back: 0, hint: '<b>UV 형광</b> 덴틴이 청백색 형광을 강하게 내고 에나멜은 약합니다. 형광이 거의 없는 수복물 패치는 검게, 백색 병소는 형광이 줄어 어두운 점으로 보입니다.' },
   nirR: { mode: 2, front: 1, back: 0, hint: '<b>NIR 반사 (약 1310 nm)</b> 에나멜 산란이 가시광보다 크게 낮아 거의 투명하고, 덴틴이 산란체로 밝게 보입니다. 병소는 산란 증가로 상대적으로 밝아집니다.' },
+  xpol: { mode: 0, front: 1, back: 0, cross: true, hint: '<b>교차편광</b> 표면 반사(스페큘러)와 프레넬 림을 모두 제거해 임상 교차편광 사진처럼 내부 색만 봅니다. 셰이드 측정과 비교할 때 쓰세요.' },
   nirT: { mode: 2, front: 0, back: 1.4, hint: '<b>NIR 투조 (약 1310 nm)</b> 에나멜이 거의 투명해 치아 전체가 빛납니다. 병소와 덴틴이 두꺼운 부위는 산란 때문에 어둡게 나타납니다.' },
 };
+/* v5.4: 셰이드 프리셋. 목표 Lab(출처는 근거 섹션), NATIVE = 게인 1에서 실측한 렌더 Lab, LABFIX = 프리셋별 렌더 실측 기반 잔차 보정(Lab 오프셋, 헤드리스 보정 루프 산출) */
+const SHADES = { A1: [83.4, -0.3, 14.2], A2: [81.3, 1.8, 19.2], A3: [76.6, 2.1, 19.1], B1: [78.9, -1.8, 12.3], B2: [76.7, -1.6, 16.6], NAT: [79.0, 3.3, 9.4] };
+const NATIVE = [78.9, 1.0, 19.2];
+const LABFIX = {A1: [4.8, -1.19, -3.15], A2: [3.08, 0.68, 0.25], A3: [-0.8, 0.83, -0.53], B1: [1.07, -2.56, -5.3], B2: [-0.75, -2.34, -2.43], NAT: [1.19, 1.61, -7.29]}; // CALIB
+
+function lab2lin(L, a, b) {
+  const fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
+  const f = t => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+  const X = f(fx) * 0.95047, Y = f(fy), Z = f(fz) * 1.08883;
+  return [3.2406 * X - 1.5372 * Y - 0.4986 * Z, -0.9689 * X + 1.8758 * Y + 0.0415 * Z, 0.0557 * X - 0.2040 * Y + 1.0570 * Z];
+}
+const shadeTarget = () => { const t = SHADES[P.shade] || SHADES.A2; return [t[0] + P.shL, t[1] + P.shA, t[2] + P.shB]; };
+function shadeGain() {
+  if (/[?&]raw\b/.test(location.search)) return [1, 1, 1];
+  const t = shadeTarget(), f = LABFIX[P.shade] || [0, 0, 0];
+  const g = lab2lin(t[0] + f[0], t[1] + f[1], t[2] + f[2]), n = lab2lin(...NATIVE);
+  return g.map((v, i) => Math.max(0.2, v / n[i]));
+}
 const SEC_HINT = '<b>단면</b> #11을 근원심 방향으로 잘라 안쪽을 봅니다. 연한 색이 에나멜, 주황이 덴틴 코어입니다. 절단 위치 슬라이더로 단면을 옮겨 보세요.';
 const ILLUM = { d65: [1, 1, 1], '4000': [1, .86, .68], '2700': [1, .74, .46] };
 const BACK = { dark: .04, white: .95, black: 0 };
@@ -281,7 +311,7 @@ controls.update();
 const UNI = `
 uniform float uMode,uT,uHyd,uChroma,uTub,uBleach,uFront,uBackL,uLesion,uPatchOn,uPatchFl,uBacking,uPass,uTex,uGloss,uSpecK,uSec,uCut,uScat,uFlip,uHmm;
 uniform vec3 uIllum,uLam;
-uniform float uA2Gain;uniform sampler2D uDentin;uniform sampler2D uThick;uniform vec2 uRes;
+uniform vec3 uShadeGain;uniform sampler2D uDentin;uniform sampler2D uThick;uniform vec2 uRes;
 `;
 const COMMON = `
 float sq(float x){return x*x;}
@@ -330,17 +360,18 @@ ${COMMON}
 float MH(vec2 p){
   float x=p.x,y=1.0-p.y;
   float wob=vnoise(vec2(x*9.0,y*5.0));
-  float peri=sin(y*210.0+wob*9.0+vnoise(vec2(x*14.0,y*30.0))*5.0)*0.00042*(0.6+0.8*vnoise(vec2(x*6.0,y*18.0)))*(1.0-0.9*smoothstep(0.15,0.70,1.0-y)); /* v3: 치경부에서 강하고 절단으로 갈수록 약함 */
+  float peri=sin(y*210.0+wob*9.0+vnoise(vec2(x*14.0,y*30.0))*5.0)*0.00055*(0.6+0.8*vnoise(vec2(x*6.0,y*18.0)))*(1.0-0.6*smoothstep(0.15,0.80,1.0-y)); /* v5.4: 수평 perikymata 전체에 희미하게 */ /* v3: 치경부에서 강하고 절단으로 갈수록 약함 */
   float imb=sin(y*58.0+wob*4.0)*0.0010*smoothstep(0.6,1.0,y);
-  float vert=sin(x*150.0+vnoise(vec2(x*30.0,y*6.0))*5.0)*0.00006; /* v4: 세로 물결 약화 */
+  float vert=sin(x*150.0+vnoise(vec2(x*30.0,y*6.0))*5.0)*0.0; /* v5.4: 세로 리플 제거 */
   float peel=(vnoise(p*70.0)-0.5)*0.0012+(vnoise(p*160.0)-0.5)*0.0003;
   /* v3: 순면 발육엽 사이 세로 함몰 2개 (하이라이트를 세로로 끊음) */
   float yy=1.0-y;
-  float lobe=-0.0030*(exp(-sq((x+0.13)/0.045))+exp(-sq((x-0.12)/0.055)))*smoothstep(0.10,0.55,yy)*(1.0-0.5*smoothstep(0.8,1.0,yy));
+  float lobe=-0.0012*(exp(-sq((x+0.13)/0.045))+exp(-sq((x-0.12)/0.055)))*smoothstep(0.10,0.55,yy)*(1.0-0.5*smoothstep(0.8,1.0,yy));
   return peri+imb+vert+peel+lobe;
 }
 void main(){
   if(vIn>0.999&&uSec<0.5)discard; /* v4: 안쪽 벽 제거 */
+  if(uSec<0.5&&vObj.y>0.990+0.012*vnoise(vec2(vObj.x*45.0,3.0))&&vObj.z>-0.02)discard; /* v5.4: 절단연 미세 불규칙 윤곽 */
   vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;
   vec3 V=normalize(vV);
   vec3 L=normalize(LDIR);
@@ -356,14 +387,15 @@ void main(){
   float gx=(MH(p+vec2(e,0.0))-MH(p-vec2(e,0.0)))/(2.0*e);
   float gy=(MH(p+vec2(0.0,e))-MH(p-vec2(0.0,e)))/(2.0*e);
   float texW=mix(1.0,0.35,smoothstep(0.30,0.80,clamp(vObj.y,0.0,1.0))); /* v4: 중간·절단 미세질감 감소 */
+  vec3 Ng0=N;
   N=normalize(N-uTex*lod*labW*texW*(gx*vTx+gy*vTy));
   float NV=clamp(dot(N,V),0.0,1.0);
   float dif=max(dot(N,L),0.0);
   float shade=mix(0.50,1.0,pow(dif,0.85));
   float rough=mix(0.45,0.10,uGloss)*mix(1.25,1.0,uHyd)*(0.5+1.0*vnoise(p*22.0))*(0.8+0.4*vnoise(p*6.0)); /* v3: 거칠기 상향 + 국소 변동 */
   float Fr=0.057+0.943*pow(1.0-NV,5.0);
-  float brk=0.25+1.1*smoothstep(0.35,0.75,vnoise(p*vec2(34.0,7.0))); /* v3: 반사 패치를 끊어 줌 */
-  vec3 envR=brk*envMap(reflect(-V,N),rough)*uIllum*Fr*mix(0.3,1.0,uGloss)*mix(0.55,1.0,uHyd)*uSpecK;
+  float brk=0.85+0.25*vnoise(p*vec2(6.0,3.0)); /* v5.4: 하이라이트 조각화 완화 */ /* v3: 반사 패치를 끊어 줌 */
+  vec3 envR=brk*envMap(reflect(-V,normalize(mix(Ng0,N,0.3))),rough)*uIllum*Fr*mix(0.3,1.0,uGloss)*mix(0.55,1.0,uHyd)*uSpecK;
   bool uv=(uMode>0.5&&uMode<1.5);
   bool nir=(uMode>1.5);
   float xo=vObj.x;
@@ -406,19 +438,21 @@ void main(){
   }else{
     float grM=exp(-sq((xo+0.13)/0.035))*smoothstep(0.08,0.4,hh);
     float grD=exp(-sq((xo-0.12)/0.05))*smoothstep(0.25,0.55,hh);
-    float ridgeTone=1.0-0.13*grM-0.08*grD+0.03*exp(-sq(xo/0.07));
-    vec3 refl=uIllum*Re*shade*ao*ridgeTone+uIllum*vec3(1.0,0.96,0.90)*0.10*pow(1.0-NV,3.0)*(0.5+0.5*dif)*(1.0-0.75*incE);
+    float ridgeTone=1.0-0.05*grM-0.03*grD; /* v5.4: 세로 띠 약화 */
+    vec3 refl=uIllum*Re*shade*ao*ridgeTone+uIllum*vec3(1.0,0.96,0.90)*0.10*pow(1.0-NV,3.0)*(0.5+0.5*dif)*(1.0-0.75*incE)*uSpecK; /* v5.4: 교차편광 시 프레넬 림 0 */
     float halo=smoothstep(0.972,0.986,hh)*(1.0-smoothstep(0.990,1.0,hh)); /* v5.1: 아주 얇은 헤일로 */ /* v3: 절단연 얇은 밝은 헤일로 */
     refl+=uIllum*vec3(1.0,0.95,0.85)*0.16*halo*shade; /* v5.1: 약한 아이보리 */
     /* v3: 치경부는 에나멜이 얇아 덴틴 색이 지배(경험적 틴트), 덴틴 없는 절단 1/3은 청회색 */
-    refl*=mix(vec3(1.0),vec3(1.03,0.92,0.74),(1.0-smoothstep(0.12,0.62,hh))*d);
-    float lv=max(max(exp(-sq((xo+0.20)/0.09)),exp(-sq(xo/0.08))),exp(-sq((xo-0.19)/0.09)));
-    float meV=0.68+0.12*lv; /* v5: 시각용 맘멜론 경계 (엽 사이가 더 깊게 파임) */
-    float inc=0.35*smoothstep(meV+0.04,meV+0.20,hh)*(0.75+0.35*vnoise(vec2(xo*22.0,hh*4.0))); /* v5: 균일한 띠 대신 세로 결 */
+    refl*=mix(vec3(1.0),vec3(1.03,0.92,0.74),(1.0-smoothstep(0.12,0.62,hh))*mix(0.55,1.0,smoothstep(0.0,0.3,0.40-hh))*d); /* v5.4: 중앙 노란 글로우 약화 (경부는 유지) */
+    float lv=min(1.0,0.62*exp(-sq((xo+0.215)/0.07))+1.0*exp(-sq((xo+0.025)/0.058))+0.82*exp(-sq((xo-0.165)/0.082))+0.25*exp(-sq((xo-0.07)/0.03)));
+    float meV=0.80+0.06*lv; /* v5.4: 맘멜론을 끝 ~2 mm 이내로, 비주기 */ /* v5: 시각용 맘멜론 경계 (엽 사이가 더 깊게 파임) */
+    float inc=0.22*smoothstep(meV+0.03,meV+0.14,hh)*(0.8+0.3*vnoise(vec2(xo*9.0,hh*6.0))); /* v5: 균일한 띠 대신 세로 결 */
     refl*=mix(vec3(1.0),vec3(0.72,0.83,1.06),inc*(1.0-halo));
-    refl+=uIllum*vec3(0.06,0.028,0.0)*smoothstep(meV-0.14,meV,hh)*(1.0-inc)*lv; /* v5: 맘멜론 끝 주황 카운터-오팔레선스 */
+    refl+=uIllum*vec3(0.035,0.016,0.0)*smoothstep(meV-0.08,meV,hh)*(1.0-inc)*lv;
+    float fl=smoothstep(0.55,0.95,0.6*vnoise(p*vec2(34.0,20.0))+0.4*vnoise(p*vec2(80.0,45.0)+7.0))*smoothstep(0.86,0.93,hh)*(1.0-smoothstep(0.972,0.988,hh)); /* v5.4: 절단 띠 내 불규칙 백색/청백 오팔 반점 */
+    refl+=uIllum*vec3(0.92,0.95,1.0)*0.06*fl*shade; /* v5: 맘멜론 끝 주황 카운터-오팔레선스 */
     refl*=vec3(1.10,1.05,0.95)*1.10;
-    refl*=mix(1.0,uA2Gain,smoothstep(0.10,0.25,hh)); /* v5.3: VITA Classical A2 (Easyshade 81.3/1.8/19.2) 명도 맞춤, 치경부 제외 */
+    refl*=mix(vec3(1.0),uShadeGain,smoothstep(0.10,0.25,hh)); /* v5.4: 셰이드 프리셋 게인(순측 중앙 1/3 실측 보정), 치경부 제외 */
     refl*=mix(vec3(1.0),vec3(0.74,0.80,0.92),incE*(1.0-0.6*halo)); /* v5.2: 회청 약하게 */ /* v5.1: 얇은 절단부 반투명 회청색 */
     refl*=mix(vec3(1.0),vec3(1.10,1.03,0.86),(1.0-d)*(1.0-inc)); /* v5: 덴틴 없는 측면 에나멜도 체부색에 가깝게 (치간 쪽 덴틴 산란광 근사) */ /* v5: 사진 03에 맞춘 약한 웜톤 (경험적) */
     /* 투과: 메시에서 잰 시선 방향 광로. 에나멜은 순측+설측 두 벽, 덴틴은 횡방향 확산으로 유효 경로를 0.8배로 */
@@ -441,15 +475,15 @@ void main(){
   al*=mix(1.0,0.90,smoothstep(0.905,0.975,clamp(vObj.y,0.0,1.0))*(1.0-0.3*smoothstep(0.99,1.0,clamp(vObj.y,0.0,1.0)))); /* v5.1: 절단부로 배경이 비침 */
   if(!uv&&!nir)al*=mix(0.86,1.0,smoothstep(0.75,0.95,hh)); /* v4: 체부 에나멜을 약간 더 반투명하게 → 덴틴 색 확산 */
   if(!uv&&!nir)al=mix(al,min(1.0,al*1.25+0.08),(1.0-d)*(1.0-smoothstep(0.62,0.80,hh))); /* v5: 측면 회색 투명 띠 감소 */
-  float lvA=max(max(exp(-sq((xo+0.20)/0.09)),exp(-sq(xo/0.08))),exp(-sq((xo-0.19)/0.09)));
-  if(!uv&&!nir)al*=mix(1.0,mix(1.0,0.50,uFront/(uFront+uBackL+0.001)),smoothstep(0.63+0.12*lvA,0.81+0.12*lvA,hh)*(1.0-smoothstep(0.95,0.985,hh))); /* v4: 절단 반투명대 */
+  float lvA=min(1.0,0.62*exp(-sq((xo+0.215)/0.07))+1.0*exp(-sq((xo+0.025)/0.058))+0.82*exp(-sq((xo-0.165)/0.082)));
+  if(!uv&&!nir)al*=mix(1.0,mix(1.0,0.72,uFront/(uFront+uBackL+0.001)),smoothstep(0.82+0.06*lvA,0.93+0.04*lvA,hh)*(1.0-smoothstep(0.95,0.985,hh))); /* v4: 절단 반투명대 */
   if(uv){float dk=(uLesion>1.5)?0.15*lesion:0.55*lesion;al=clamp(0.06+pm*0.94+dk,0.0,1.0);}
-  vec3 Ns=normalize(N+0.05*((vnoise(p*95.0)-0.5)*vTx+(vnoise(p*95.0+17.0)-0.5)*vTy)); /* v5: 하이라이트용 미세 법선 */
+  vec3 Ns=normalize(mix(Ng0,N,0.3)+0.012*((vnoise(p*95.0)-0.5)*vTx+(vnoise(p*95.0+17.0)-0.5)*vTy)); /* v5.4 */ /* v5: 하이라이트용 미세 법선 */
   vec3 Rv=reflect(-V,Ns);
   float spk=pow(max(dot(Rv,normalize(vec3(-0.40,0.42,0.81))),0.0),320.0)+0.7*pow(max(dot(Rv,normalize(vec3(0.55,0.25,0.80))),0.0),360.0)+0.6*pow(max(dot(Rv,normalize(vec3(-0.12,0.18,0.976))),0.0),340.0)+0.28*pow(max(dot(Rv,normalize(vec3(0.08,-0.22,0.97))),0.0),380.0);
-  float smask=smoothstep(0.52,0.72,vnoise(p*vec2(80.0,20.0)))*(0.6+0.4*vnoise(p*140.0));
+  float smask=0.85+0.15*vnoise(p*vec2(8.0,3.0)); /* v5.4: 끊긴 조각 대신 긴 하이라이트 */
   /* v5: 습윤 에나멜의 작고 선명한 끊긴 하이라이트 (작은 광원 3개 + 노이즈 마스크) */
-  vec3 spec=envR*0.6*uFront*uPass*(uv?0.05:1.0)+uIllum*vec3(1.0,0.98,0.95)*spk*smask*2.2*uGloss*mix(0.3,1.0,uHyd)*uSpecK*uFront*uFront*uPass*(uv?0.0:1.0);
+  vec3 spec=envR*0.42*uFront*uPass*(uv?0.05:1.0)+uIllum*vec3(1.0,0.98,0.95)*spk*smask*2.2*uGloss*mix(0.3,1.0,uHyd)*uSpecK*uFront*uFront*uPass*(uv?0.0:1.0);
   if(nir)spec=vec3(dot(spec,vec3(0.333)));
   float trf=(uPass>0.5)?(1.0-al):0.0;
   vec3 rgb=outc(col/al)*al+trf*bl.rgb+outc(spec);
@@ -512,7 +546,7 @@ const U = {
   uScat: { value: 1 }, uTex: { value: .35 }, uGloss: { value: .8 }, uSpecK: { value: 1 }, uSec: { value: 0 }, uCut: { value: 0 },
   uFlip: { value: -1 }, uHmm: { value: 10 },
   uIllum: { value: new THREE.Vector3(1, 1, 1) }, uLam: { value: new THREE.Vector3(610, 550, 460) },
-  uA2Gain: { value: 1.30 }, uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
+  uShadeGain: { value: new THREE.Vector3(1.30, 1.30, 1.30) }, uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
 };
 const U21 = Object.assign({}, U, { uLesion: { value: 0 }, uPatchOn: { value: 0 }, uSec: { value: 0 }, uFlip: { value: 1 } });
 const withPass = (u, pass) => Object.assign({}, u, { uPass: { value: pass } });
@@ -622,7 +656,7 @@ function apply() {
   u.uMode.value = P.mode; u.uT.value = P.thick; u.uHyd.value = P.hyd; u.uChroma.value = P.chroma; u.uTub.value = P.tub;
   u.uBleach.value = P.bleach; u.uFront.value = P.front; u.uBackL.value = P.back; u.uLesion.value = P.lesion;
   u.uPatchOn.value = P.patch ? 1 : 0; u.uPatchFl.value = P.patchFl; u.uBacking.value = BACK[P.backing];
-  u.uScat.value = P.scat; u.uSec.value = P.sec ? 1 : 0; u.uCut.value = P.cut; u.uTex.value = P.tex; u.uGloss.value = P.gloss; u.uSpecK.value = P.cross ? 0 : 1;
+  u.uScat.value = P.scat; u.uSec.value = P.sec ? 1 : 0; u.uCut.value = P.cut; u.uTex.value = P.tex; u.uGloss.value = P.gloss; u.uSpecK.value = P.cross ? 0 : 1; u.uShadeGain.value.set(...shadeGain()); { const t = shadeTarget(); $('shadeOut').textContent = `렌더 셰이드 목표 (${P.shade}, 반사 순측 중앙 1/3): L* ${t[0].toFixed(1)} / a* ${t[1].toFixed(1)} / b* ${t[2].toFixed(1)} — 위 '체부 색'은 모델 계산값으로 렌더 셰이드와 별개입니다.`; }
   const il = P.mode === 2 ? [1, 1, 1] : ILLUM[P.illum]; u.uIllum.value.set(...il);
   if (P.mode === 2) u.uLam.value.set(1310, 1310, 1310); else u.uLam.value.set(610, 550, 460);
   const bg = P.mode === 1 ? '#04020a' : BGCOL[P.backing];
@@ -695,7 +729,7 @@ function drawSpec() {
 addEventListener('resize', drawSpec);
 
 /* ---------- UI 바인딩 ---------- */
-const fmt = { front: v => v.toFixed(2), back: v => v.toFixed(2), thick: v => v.toFixed(2) + ' mm', hyd: v => v.toFixed(2), chroma: v => v.toFixed(2),
+const fmt = { shL: v => (v >= 0 ? '+' : '') + v.toFixed(1), shA: v => (v >= 0 ? '+' : '') + v.toFixed(2), shB: v => (v >= 0 ? '+' : '') + v.toFixed(1), front: v => v.toFixed(2), back: v => v.toFixed(2), thick: v => v.toFixed(2) + ' mm', hyd: v => v.toFixed(2), chroma: v => v.toFixed(2),
   tub: v => v.toFixed(2), bleach: v => v.toFixed(2), tex: v => v.toFixed(2), scat: v => v.toFixed(2), gloss: v => v.toFixed(2), patchFl: v => v.toFixed(2),
   cut: v => (v * 10.5 >= 0 ? '+' : '−') + Math.abs(v * 10.5).toFixed(1) + ' mm', wipeX: v => `${v}%` };
 const DEFAULTS = {};
@@ -712,6 +746,7 @@ for (const id in fmt) {
 $('pClear').onclick = () => setS({ scat: .3, thick: 1.3, chroma: 1.4 });
 $('pMilky').onclick = () => setS({ scat: 1.6, thick: .9, chroma: .5 });
 $('illum').onchange = e => { P.illum = e.target.value; apply(); };
+$('shade').onchange = e => { P.shade = e.target.value; apply(); };
 $('lesion').onchange = e => { P.lesion = +e.target.value; apply(); };
 $('backing').onchange = e => { P.backing = e.target.value; apply(); };
 for (const id of ['patch', 'cross', 'nb']) $(id).onchange = e => { P[id] = e.target.checked; apply(); };
@@ -726,6 +761,7 @@ document.querySelectorAll('#presets button').forEach(b => b.addEventListener('cl
   const p = PRESETS[b.dataset.p];
   curPreset = b.dataset.p;
   document.querySelectorAll('#presets button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  P.cross = !!p.cross; $('cross').checked = P.cross;
   setS({ mode: p.mode, front: p.front, back: p.back });
   setHint();
 }));
@@ -739,7 +775,7 @@ $('spin').onclick = () => { controls.autoRotate = !controls.autoRotate; $('spin'
 $('reset').onclick = () => {
   for (const id in DEFAULTS) { const el = $(id); el.type === 'checkbox' ? (el.checked = DEFAULTS[id]) : (el.value = DEFAULTS[id]); }
   Object.assign(P, { mode: 0, front: 1, back: 0, illum: 'd65', thick: .8, hyd: 1, chroma: .6, tub: .5, bleach: 0, tex: .35, scat: 1.15, gloss: .8,
-    cross: false, nb: true, lesion: 0, patch: false, patchFl: .15, backing: 'black', sec: false, cut: 0 });
+    cross: false, nb: true, lesion: 0, patch: false, patchFl: .15, backing: 'black', sec: false, cut: 0, shade: 'A2', shL: 0, shA: 0, shB: 0 });
   for (const id in fmt) $('o-' + id).textContent = fmt[id](+$(id).value);
   document.querySelectorAll('#presets button').forEach(x => x.setAttribute('aria-pressed', x.dataset.p === 'refl' ? 'true' : 'false'));
   curPreset = 'refl'; setHint(); frontView(); apply();
