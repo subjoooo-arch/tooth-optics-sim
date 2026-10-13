@@ -203,6 +203,7 @@ details li { margin-bottom: 6px; }
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const $ = id => document.getElementById(id);
@@ -243,7 +244,7 @@ const tScene = new THREE.Scene();
 const mkThick = ch => new THREE.ShaderMaterial({
   uniforms: { uCh: { value: ch }, uRef: { value: 40 } },
   vertexShader: 'attribute vec3 aObj;uniform float uRef;varying float vD;varying vec3 vO;void main(){vO=aObj;vec4 mv=modelViewMatrix*vec4(position,1.0);vD=-mv.z-uRef;gl_Position=projectionMatrix*mv;}',
-  fragmentShader: 'uniform vec3 uCh;varying float vD;varying vec3 vO;float sq(float x){return x*x;}float mamEdge(float x){float l=max(max(exp(-sq((x+0.20)/0.10)),exp(-sq(x/0.09))),exp(-sq((x-0.19)/0.10)));return 0.69+0.09*l;}void main(){float me=mamEdge(vO.x);float f=(uCh.g>0.5)?1.0-smoothstep(me-0.07,me+0.03,clamp(vO.y,0.0,1.0)):1.0;gl_FragColor=vec4(uCh*(gl_FrontFacing?-vD:vD)*f,0.0);}',
+  fragmentShader: 'uniform vec3 uCh;varying float vD;varying vec3 vO;float sq(float x){return x*x;}float mamEdge(float x){float l=0.62*exp(-sq((x+0.215)/0.07))+1.0*exp(-sq((x+0.025)/0.058))+0.82*exp(-sq((x-0.165)/0.082))+0.28*exp(-sq((x-0.07)/0.028))+0.18*exp(-sq((x+0.12)/0.025));return 0.55+0.16*min(l,1.0);}void main(){float me=mamEdge(vO.x);float f=(uCh.g>0.5)?1.0-smoothstep(me-0.07,me+0.03,clamp(vO.y,0.0,1.0)):1.0;gl_FragColor=vec4(uCh*(gl_FrontFacing?-vD:vD)*f,0.0);}',
   side: THREE.DoubleSide, depthTest: false, depthWrite: false,
   blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
 });
@@ -281,7 +282,7 @@ controls.update();
 const UNI = `
 uniform float uMode,uT,uHyd,uChroma,uTub,uBleach,uFront,uBackL,uLesion,uPatchOn,uPatchFl,uBacking,uPass,uTex,uGloss,uSpecK,uSec,uCut,uScat,uFlip,uHmm;
 uniform vec3 uIllum,uLam;
-uniform sampler2D uDentin;uniform sampler2D uThick;uniform vec2 uRes;
+uniform sampler2D uDentin;uniform sampler2D uEnv;uniform float uEnvOn;uniform sampler2D uThick;uniform vec2 uRes;
 `;
 const COMMON = `
 float sq(float x){return x*x;}
@@ -292,7 +293,18 @@ float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
   return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y);}
 float box(vec2 p,vec2 lo,vec2 hi,float w){vec2 a=smoothstep(lo-w,lo+w,p)*(1.0-smoothstep(hi-w,hi+w,p));return a.x*a.y;}
 /* 절차적 스튜디오 환경: Blender의 Key(좌상, 세로로 긴 박스) · Fill(우측, 좁은 박스) · Top 소프트박스 방향을 본뜸 */
+vec3 envMapOld(vec3 r,float rough);
 vec3 envMap(vec3 r,float rough){
+  if(uEnvOn>0.5){ /* v6: Poly Haven studio_small_09 (CC0) 등장방형 HDRI, 거칠기 → mip bias */
+    float u=atan(r.x,-r.z)*0.15915+0.5+0.12;
+    float v=asin(clamp(r.y,-1.0,1.0))*0.31831+0.5;
+    vec3 e=texture2D(uEnv,vec2(u,v),rough*9.0).rgb;
+    vec3 e2=texture2D(uEnv,vec2(u,v),8.0).rgb; /* v6: 넓은 헤이즈 바닥 → 회색 얼룩 제거 */
+    return (max(e-vec3(0.25),vec3(0.0))*0.55+e2*0.16)*smoothstep(-0.2,0.3,r.z+0.4)+vec3(0.06,0.07,0.085)*6.0*uBacking;
+  }
+  return envMapOld(r,rough);
+}
+vec3 envMapOld(vec3 r,float rough){
   float w=0.20+rough*1.8; /* v4: 소프트박스 반사 가장자리를 더 흐리게 */
   vec3 c=mix(vec3(0.012,0.013,0.016),vec3(0.06,0.07,0.085),smoothstep(-0.5,0.9,r.y));
   c*=1.0+6.0*uBacking;
@@ -305,8 +317,9 @@ vec3 envMap(vec3 r,float rough){
 const vec3 LDIR=vec3(-0.47,0.37,0.80);
 /* v3: 덴틴 절단 경계 = 맘멜론 3엽. 절단연에서 약 1.5–2 mm(정규화 0.17) 짧게 끝남 */
 float mamEdge(float x){
-  float l=max(max(exp(-sq((x+0.20)/0.10)),exp(-sq(x/0.09))),exp(-sq((x-0.19)/0.10)));
-  return 0.69+0.09*l;
+  /* v6: 불규칙(비주기) 맘멜론 3엽 + 작은 보조엽. JS의 덴틴 변형과 같은 식 */
+  float l=0.62*exp(-sq((x+0.215)/0.07))+1.0*exp(-sq((x+0.025)/0.058))+0.82*exp(-sq((x-0.165)/0.082))+0.28*exp(-sq((x-0.07)/0.028))+0.18*exp(-sq((x+0.12)/0.025));
+  return 0.55+0.16*min(l,1.0);
 }
 `;
 const VS = `
@@ -356,14 +369,15 @@ void main(){
   float gx=(MH(p+vec2(e,0.0))-MH(p-vec2(e,0.0)))/(2.0*e);
   float gy=(MH(p+vec2(0.0,e))-MH(p-vec2(0.0,e)))/(2.0*e);
   float texW=mix(1.0,0.35,smoothstep(0.30,0.80,clamp(vObj.y,0.0,1.0))); /* v4: 중간·절단 미세질감 감소 */
+  vec3 Ng=N;
   N=normalize(N-uTex*lod*labW*texW*(gx*vTx+gy*vTy));
   float NV=clamp(dot(N,V),0.0,1.0);
-  float dif=max(dot(N,L),0.0);
+  float dif=max(dot(normalize(mix(Ng,N,0.25)),L),0.0); /* v6: 확산 음영은 거의 기하 법선으로 → 얼룩 감소 */
   float shade=mix(0.50,1.0,pow(dif,0.85));
   float rough=mix(0.45,0.10,uGloss)*mix(1.25,1.0,uHyd)*(0.5+1.0*vnoise(p*22.0))*(0.8+0.4*vnoise(p*6.0)); /* v3: 거칠기 상향 + 국소 변동 */
   float Fr=0.057+0.943*pow(1.0-NV,5.0);
   float brk=0.25+1.1*smoothstep(0.35,0.75,vnoise(p*vec2(34.0,7.0))); /* v3: 반사 패치를 끊어 줌 */
-  vec3 envR=brk*envMap(reflect(-V,N),rough)*uIllum*Fr*mix(0.3,1.0,uGloss)*mix(0.55,1.0,uHyd)*uSpecK;
+  vec3 envR=envMap(reflect(-V,N),rough)*uIllum*Fr*mix(0.3,1.0,uGloss)*mix(0.55,1.0,uHyd)*uSpecK;
   bool uv=(uMode>0.5&&uMode<1.5);
   bool nir=(uMode>1.5);
   float xo=vObj.x;
@@ -371,6 +385,7 @@ void main(){
 
   vec4 bl=texture2D(uDentin,gl_FragCoord.xy/uRes);
   float d=smoothstep(0.0,0.9,bl.a); /* v4: 부드러운 덴틴 기여 */                 /* 이 화소 뒤에 덴틴이 있는 정도 */
+  { float me0=mamEdge(xo); d*=1.0-smoothstep(me0-0.07,me0+0.015,hh); } /* v6: 비주기 맘메론 로브를 덴틴 존재도에 직접 반영 */
 
   float lab=smoothstep(0.0,0.12,vObj.z);
   float pm=uPatchOn*(1.0-smoothstep(0.065,0.10,length((vObj.xy-vec2(0.12,0.60))*vec2(1.0,0.8))))*lab;
@@ -408,13 +423,12 @@ void main(){
     float halo=smoothstep(0.945,0.975,hh)*(1.0-0.4*smoothstep(0.99,1.0,hh)); /* v3: 절단연 얇은 밝은 헤일로 */
     refl+=uIllum*vec3(0.92,0.94,1.0)*0.65*halo*shade;
     /* v3: 치경부는 에나멜이 얇아 덴틴 색이 지배(경험적 틴트), 덴틴 없는 절단 1/3은 청회색 */
-    refl*=mix(vec3(1.0),vec3(1.03,0.92,0.74),(1.0-smoothstep(0.12,0.62,hh))*d);
-    float lv=max(max(exp(-sq((xo+0.20)/0.09)),exp(-sq(xo/0.08))),exp(-sq((xo-0.19)/0.09)));
-    float meV=0.68+0.12*lv; /* v5: 시각용 맘멜론 경계 (엽 사이가 더 깊게 파임) */
-    float inc=smoothstep(meV-0.05,meV+0.13,hh)*(0.75+0.35*vnoise(vec2(xo*22.0,hh*4.0))); /* v5: 균일한 띠 대신 세로 결 */
-    refl*=mix(vec3(1.0),vec3(0.72,0.83,1.06),inc*(1.0-halo));
-    refl+=uIllum*vec3(0.06,0.028,0.0)*smoothstep(meV-0.14,meV,hh)*(1.0-inc)*lv; /* v5: 맘멜론 끝 주황 카운터-오팔레선스 */
-    refl*=vec3(1.10,1.05,0.95)*1.10;
+    refl*=mix(vec3(1.0),vec3(1.03,0.92,0.74),(1.0-smoothstep(0.20,0.72,hh))*d);
+    float tip=d*(1.0-d)*4.0*smoothstep(0.45,0.60,hh); /* v6: 로브 끝 역유백광(주황) */
+    refl*=mix(vec3(1.0),vec3(1.06,0.90,0.70),0.55*tip);
+    float inc=smoothstep(0.48,0.66,hh)*(1.0-d); /* v6: 덴틴 존재(블러된 실제 변형 덴틴)로부터 절단 반투명대 */
+    refl*=mix(vec3(1.0),vec3(0.70,0.82,1.07),inc*(1.0-halo));
+    refl*=vec3(1.10,1.05,0.95)*1.18;
     refl*=mix(vec3(1.0),vec3(1.10,1.03,0.86),(1.0-d)*(1.0-inc)); /* v5: 덴틴 없는 측면 에나멜도 체부색에 가깝게 (치간 쪽 덴틴 산란광 근사) */ /* v5: 사진 03에 맞춘 약한 웜톤 (경험적) */
     /* 투과: 메시에서 잰 시선 방향 광로. 에나멜은 순측+설측 두 벽, 덴틴은 횡방향 확산으로 유효 경로를 0.8배로 */
     vec2 th=max(texture2D(uThick,gl_FragCoord.xy/uRes).rg,0.0);
@@ -425,7 +439,8 @@ void main(){
     /* v3: 덴틴 투과를 확산 근사로: μeff=√(3μa(μa+μs')), 유효 경로 0.3배 (측방 확산으로 짧아짐, 가정) */
     vec3 mueff=sqrt(3.0*kabs*(kabs+sd));
     vec3 trans=uIllum*exp(-0.30*s*pathE)*exp(-mueff*pathD*0.36)/(1.0+0.08*sd*pathD)*7.0*(0.85+0.15*NV); /* v4: 메시 계단 면의 NV 의존 줄여 줄무늬 완화 */
-    if(!nir)trans*=pow(max(max(trans.r,trans.g),1e-3),-0.58)*1.10*(0.80+0.35*exp(-sq(xo/0.22))); /* v5: 중앙 글로, 측면 약간 어둡게 (사진 04 경향) */ /* v5: 밝기 압축(색상 유지) → 두꺼운 부위도 밝은 노랑-주황 */
+    if(!nir)trans*=pow(max(max(trans.r,trans.g),1e-3),-0.58)*1.10*(0.80+0.35*exp(-sq(xo/0.22)));
+    if(!nir)trans*=mix(vec3(1.0),vec3(0.95,0.48,0.26),(0.5*smoothstep(1.25,2.6,graze)+0.95*smoothstep(0.15,0.36,abs(xo)))*smoothstep(0.18,0.40,hh)); /* v6: 외곽(긴 경로)은 진한 적주황 */ /* v5: 밝기 압축(색상 유지) → 두꺼운 부위도 밝은 노랑-주황 */
     col=uFront*refl+uBackL*trans*uPass+0.015;
     if(nir){float g=col.g;col=vec3(g)*vec3(1.0,0.86,0.80);}
   }
@@ -433,15 +448,9 @@ void main(){
   float al=clamp(max(1.0-tg,0.04+Fr*0.08),0.0,1.0);
   if(!uv&&!nir)al*=mix(0.86,1.0,smoothstep(0.75,0.95,hh)); /* v4: 체부 에나멜을 약간 더 반투명하게 → 덴틴 색 확산 */
   if(!uv&&!nir)al=mix(al,min(1.0,al*1.25+0.08),(1.0-d)*(1.0-smoothstep(0.62,0.80,hh))); /* v5: 측면 회색 투명 띠 감소 */
-  float lvA=max(max(exp(-sq((xo+0.20)/0.09)),exp(-sq(xo/0.08))),exp(-sq((xo-0.19)/0.09)));
-  if(!uv&&!nir)al*=mix(1.0,mix(1.0,0.50,uFront/(uFront+uBackL+0.001)),smoothstep(0.63+0.12*lvA,0.81+0.12*lvA,hh)*(1.0-smoothstep(0.95,0.985,hh))); /* v4: 절단 반투명대 */
+  if(!uv&&!nir)al*=mix(1.0,mix(1.0,0.45,uFront/(uFront+uBackL+0.001)),smoothstep(0.50,0.80,hh)*(1.0-d)*(1.0-smoothstep(0.95,0.985,hh))); /* v6: 실제 덴틴 부재 기반 반투명 */
   if(uv){float dk=(uLesion>1.5)?0.15*lesion:0.55*lesion;al=clamp(0.06+pm*0.94+dk,0.0,1.0);}
-  vec3 Ns=normalize(N+0.05*((vnoise(p*95.0)-0.5)*vTx+(vnoise(p*95.0+17.0)-0.5)*vTy)); /* v5: 하이라이트용 미세 법선 */
-  vec3 Rv=reflect(-V,Ns);
-  float spk=pow(max(dot(Rv,normalize(vec3(-0.40,0.42,0.81))),0.0),320.0)+0.7*pow(max(dot(Rv,normalize(vec3(0.55,0.25,0.80))),0.0),360.0)+0.6*pow(max(dot(Rv,normalize(vec3(-0.12,0.18,0.976))),0.0),340.0)+0.28*pow(max(dot(Rv,normalize(vec3(0.08,-0.22,0.97))),0.0),380.0);
-  float smask=smoothstep(0.52,0.72,vnoise(p*vec2(80.0,20.0)))*(0.6+0.4*vnoise(p*140.0));
-  /* v5: 습윤 에나멜의 작고 선명한 끊긴 하이라이트 (작은 광원 3개 + 노이즈 마스크) */
-  vec3 spec=envR*0.6*uFront*uPass*(uv?0.05:1.0)+uIllum*vec3(1.0,0.98,0.95)*spk*smask*2.2*uGloss*mix(0.3,1.0,uHyd)*uSpecK*uFront*uFront*uPass*(uv?0.0:1.0);
+  vec3 spec=envR*1.0*uFront*uPass*(uv?0.05:1.0); /* v6: HDRI 반사로 대체 (고정 소광원 제거) */
   if(nir)spec=vec3(dot(spec,vec3(0.333)));
   float trf=(uPass>0.5)?(1.0-al):0.0;
   vec3 rgb=outc(col/al)*al+trf*bl.rgb+outc(spec);
@@ -504,8 +513,9 @@ const U = {
   uScat: { value: 1 }, uTex: { value: .35 }, uGloss: { value: .8 }, uSpecK: { value: 1 }, uSec: { value: 0 }, uCut: { value: 0 },
   uFlip: { value: -1 }, uHmm: { value: 10 },
   uIllum: { value: new THREE.Vector3(1, 1, 1) }, uLam: { value: new THREE.Vector3(610, 550, 460) },
-  uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
+  uDentin: { value: rtA.texture }, uEnv: { value: null }, uEnvOn: { value: 0 }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
 };
+new RGBELoader().load('studio.hdr', t => { t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; U.uEnv.value = t; U.uEnvOn.value = 1; }, undefined, e => console.warn('HDRI load failed', e));
 const U21 = Object.assign({}, U, { uLesion: { value: 0 }, uPatchOn: { value: 0 }, uSec: { value: 0 }, uFlip: { value: 1 } });
 const withPass = (u, pass) => Object.assign({}, u, { uPass: { value: pass } });
 const blend = { transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation };
@@ -542,6 +552,17 @@ fetch('teeth-glb.txt').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`
         A[i * 3 + 1] = (b.max.y - pos.getY(i)) / H;
         A[i * 3 + 2] = (pos.getZ(i) - cz) / 10.5;
       }
+      if (p.dentin) p.orig = Float32Array.from(pos.array);
+      if (p.dentin) { /* v6: 덴틴 절단 끝을 불규칙 맘멜론 엽 모양으로 실제 변형 (에나멜 광로가 엽 사이에서 길어짐) */
+        const g = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
+        const E = x => 0.55 + 0.16 * Math.min(1, 0.62 * g(x, -0.215, 0.07) + g(x, -0.025, 0.058) + 0.82 * g(x, 0.165, 0.082) + 0.28 * g(x, 0.07, 0.028) + 0.18 * g(x, -0.12, 0.025));
+        let ymax = 0; for (let i = 0; i < pos.count; i++) ymax = Math.max(ymax, A[i * 3 + 1]);
+        for (let i = 0; i < pos.count; i++) {
+          const e = E(A[i * 3]), lo = e - 0.12, y = A[i * 3 + 1];
+          if (y > lo && ymax > e) { const ny = lo + (y - lo) * (e - lo) / (ymax - lo); A[i * 3 + 1] = ny; pos.setY(i, b.max.y - ny * H); }
+        }
+        pos.needsUpdate = true; p.geo.computeBoundingSphere(); p.geo.computeVertexNormals();
+      }
       p.geo.setAttribute('aObj', new THREE.BufferAttribute(A, 3));
       const m = MATS[p.tooth];
       if (p.dentin) {
@@ -559,7 +580,7 @@ fetch('teeth-glb.txt').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`
     for (const t of ['11', '21']) {
       const G = new Map(), C = 0.5, key = (x, y, z) => `${Math.floor(x / C)},${Math.floor(y / C)},${Math.floor(z / C)}`;
       let cx = 0, cy = 0, cz = 0, cn = 0;
-      for (const p of parts) if (p.dentin && p.tooth === t) { const q = p.geo.attributes.position; for (let i = 0; i < q.count; i++) { cx += q.getX(i); cy += q.getY(i); cz += q.getZ(i); cn++; const k = key(q.getX(i), q.getY(i), q.getZ(i)); if (!G.has(k)) G.set(k, []); G.get(k).push(q.getX(i), q.getY(i), q.getZ(i)); } }
+      for (const p of parts) if (p.dentin && p.tooth === t) { const o = p.orig, q = { count: o.length / 3, getX: i => o[i * 3], getY: i => o[i * 3 + 1], getZ: i => o[i * 3 + 2] }; for (let i = 0; i < q.count; i++) { cx += q.getX(i); cy += q.getY(i); cz += q.getZ(i); cn++; const k = key(q.getX(i), q.getY(i), q.getZ(i)); if (!G.has(k)) G.set(k, []); G.get(k).push(q.getX(i), q.getY(i), q.getZ(i)); } }
       for (const p of parts) if (!p.dentin && p.tooth === t) {
         if (!p.geo.attributes.normal) p.geo.computeVertexNormals();
         const q = p.geo.attributes.position, nr = p.geo.attributes.normal, IN = new Float32Array(q.count);
@@ -756,7 +777,7 @@ function drawFrame() {
     renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(scene, camera);
     renderer.getDrawingBufferSize(bufSize);
     const pxPerMm = bufSize.y * camera.zoom / (camera.top - camera.bottom);
-    const sig = pxPerMm * (0.35 + 0.75 * P.thick) * Math.min(1.4, Math.pow(P.scat, .7)) * (P.mode === 2 ? .35 : 1); /* v4: 횡방향 산란 폭 ≈0.35+0.75·두께 mm */
+    const sig = pxPerMm * (0.12 + 0.25 * P.thick) * Math.min(1.4, Math.pow(P.scat, .7)) * (P.mode === 2 ? .35 : 1); /* v4: 횡방향 산란 폭 ≈0.35+0.75·두께 mm */
     bMat.uniforms.tDiffuse.value = rtA.texture; bMat.uniforms.uDir.value.set(sig / bufSize.x, 0);
     renderer.setRenderTarget(rtB); renderer.render(bScene, bCam);
     bMat.uniforms.tDiffuse.value = rtB.texture; bMat.uniforms.uDir.value.set(0, sig / bufSize.y);
