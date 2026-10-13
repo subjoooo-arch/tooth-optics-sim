@@ -368,6 +368,8 @@ void main(){
   bool nir=(uMode>1.5);
   float xo=vObj.x;
   float hh=clamp(vObj.y,0.0,1.0);
+  float incE=smoothstep(0.84,0.97,hh); /* v5.1: 얇은 절단 에나멜 */
+  envR*=mix(1.0,0.40,incE); /* v5.1: 절단연 스페큘러/프레넬 완화 */
 
   vec4 bl=texture2D(uDentin,gl_FragCoord.xy/uRes);
   float d=smoothstep(0.0,0.9,bl.a); /* v4: 부드러운 덴틴 기여 */                 /* 이 화소 뒤에 덴틴이 있는 정도 */
@@ -404,9 +406,9 @@ void main(){
     float grM=exp(-sq((xo+0.13)/0.035))*smoothstep(0.08,0.4,hh);
     float grD=exp(-sq((xo-0.12)/0.05))*smoothstep(0.25,0.55,hh);
     float ridgeTone=1.0-0.13*grM-0.08*grD+0.03*exp(-sq(xo/0.07));
-    vec3 refl=uIllum*Re*shade*ao*ridgeTone+uIllum*vec3(1.0,0.96,0.90)*0.10*pow(1.0-NV,3.0)*(0.5+0.5*dif);
-    float halo=smoothstep(0.945,0.975,hh)*(1.0-0.4*smoothstep(0.99,1.0,hh)); /* v3: 절단연 얇은 밝은 헤일로 */
-    refl+=uIllum*vec3(0.92,0.94,1.0)*0.65*halo*shade;
+    vec3 refl=uIllum*Re*shade*ao*ridgeTone+uIllum*vec3(1.0,0.96,0.90)*0.10*pow(1.0-NV,3.0)*(0.5+0.5*dif)*(1.0-0.75*incE);
+    float halo=smoothstep(0.972,0.986,hh)*(1.0-smoothstep(0.990,1.0,hh)); /* v5.1: 아주 얇은 헤일로 */ /* v3: 절단연 얇은 밝은 헤일로 */
+    refl+=uIllum*vec3(1.0,0.95,0.85)*0.16*halo*shade; /* v5.1: 약한 아이보리 */
     /* v3: 치경부는 에나멜이 얇아 덴틴 색이 지배(경험적 틴트), 덴틴 없는 절단 1/3은 청회색 */
     refl*=mix(vec3(1.0),vec3(1.03,0.92,0.74),(1.0-smoothstep(0.12,0.62,hh))*d);
     float lv=max(max(exp(-sq((xo+0.20)/0.09)),exp(-sq(xo/0.08))),exp(-sq((xo-0.19)/0.09)));
@@ -415,6 +417,7 @@ void main(){
     refl*=mix(vec3(1.0),vec3(0.72,0.83,1.06),inc*(1.0-halo));
     refl+=uIllum*vec3(0.06,0.028,0.0)*smoothstep(meV-0.14,meV,hh)*(1.0-inc)*lv; /* v5: 맘멜론 끝 주황 카운터-오팔레선스 */
     refl*=vec3(1.10,1.05,0.95)*1.10;
+    refl*=mix(vec3(1.0),vec3(0.62,0.68,0.80),incE*(1.0-0.6*halo)); /* v5.1: 얇은 절단부 반투명 회청색 */
     refl*=mix(vec3(1.0),vec3(1.10,1.03,0.86),(1.0-d)*(1.0-inc)); /* v5: 덴틴 없는 측면 에나멜도 체부색에 가깝게 (치간 쪽 덴틴 산란광 근사) */ /* v5: 사진 03에 맞춘 약한 웜톤 (경험적) */
     /* 투과: 메시에서 잰 시선 방향 광로. 에나멜은 순측+설측 두 벽, 덴틴은 횡방향 확산으로 유효 경로를 0.8배로 */
     vec2 th=max(texture2D(uThick,gl_FragCoord.xy/uRes).rg,0.0);
@@ -431,6 +434,7 @@ void main(){
   }
   float tg=dot(Td*Td,vec3(0.2126,0.7152,0.0722));
   float al=clamp(max(1.0-tg,0.04+Fr*0.08),0.0,1.0);
+  al*=mix(1.0,0.72,smoothstep(0.86,0.97,clamp(vObj.y,0.0,1.0))*(1.0-0.3*smoothstep(0.99,1.0,clamp(vObj.y,0.0,1.0)))); /* v5.1: 절단부로 배경이 비침 */
   if(!uv&&!nir)al*=mix(0.86,1.0,smoothstep(0.75,0.95,hh)); /* v4: 체부 에나멜을 약간 더 반투명하게 → 덴틴 색 확산 */
   if(!uv&&!nir)al=mix(al,min(1.0,al*1.25+0.08),(1.0-d)*(1.0-smoothstep(0.62,0.80,hh))); /* v5: 측면 회색 투명 띠 감소 */
   float lvA=max(max(exp(-sq((xo+0.20)/0.09)),exp(-sq(xo/0.08))),exp(-sq((xo-0.19)/0.09)));
