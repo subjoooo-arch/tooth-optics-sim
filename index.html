@@ -296,7 +296,7 @@ const bMat = new THREE.ShaderMaterial({
 bScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bMat));
 
 /* Cycles 카메라와 같은 정사영: ortho_scale 19 mm, 4:3. 단위 mm */
-const ORTHO_W = 19, ASPECT = 4 / 3;
+const ORTHO_W = 22, /* v5.6: 넓어진 치관(2×8.6 mm)에 맞춰 19→22 mm */ ASPECT = 4 / 3;
 const camera = new THREE.OrthographicCamera(-ORTHO_W / 2, ORTHO_W / 2, ORTHO_W / 2 / ASPECT, -ORTHO_W / 2 / ASPECT, 0.1, 200);
 const FRONT_POS = new THREE.Vector3(0, 1.3, 40);
 const FRONT_TARGET = new THREE.Vector3(0, 1.3 - 40 * Math.tan(Math.PI / 2 - 1.538), 0);
@@ -315,7 +315,8 @@ uniform vec3 uShadeGain;uniform sampler2D uDentin;uniform sampler2D uThick;unifo
 `;
 const COMMON = `
 float sq(float x){return x*x;}
-float eprof(float h){return (0.25+1.5*min(h,0.5)+0.5*max(h-0.5,0.0)+0.5*smoothstep(0.88,1.0,h))*smoothstep(0.0,0.03,h);}
+/* v5.6: 순측 에나멜 두께(uT=0.8 기준, mm): 치경 1/3 0.48 (PMC11592583, CEJ+1 mm 0.48±0.09), 중간 0.82, 절단 1/3 0.96, 절단연 1.06 (PMC10701974; PubMed 25584054 최대 1.26) */
+float eprof(float h){float e=h<0.17?mix(0.30,0.60,h/0.17):h<0.5?mix(0.60,1.025,(h-0.17)/0.33):h<0.83?mix(1.025,1.20,(h-0.5)/0.33):mix(1.20,1.325,(h-0.83)/0.17);return e*smoothstep(0.0,0.03,h);}
 vec3 outc(vec3 c){c=max(c,0.0);c=c/(1.0+0.12*c);return pow(c,vec3(1.0/2.2));}
 float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
@@ -433,8 +434,13 @@ void main(){
 
   vec3 col;
   if(uv){
-    float fl=mix(0.10*clamp(T,0.0,2.0),uPatchFl,pm);
-    col=uFront*(fl*vec3(0.30,0.52,1.0)*shade*ao+vec3(0.05,0.02,0.09)*shade);
+    /* v5.6: Lee 2015 JBO 20:040901 — 근자외 여기 시 청색 형광 피크 ~440 nm(FWHM ~100 nm, Matsumoto/Araki), 형광은 주로 덴틴(유기질), 에나멜은 약함.
+       에나멜 방출 = 덴틴의 1/3(가정; Lee 2015의 '덴틴 인광 3배'를 근사), 에나멜은 ~490–530 nm 성분이 있어 약간 청록(Borisova 2003). */
+    float uvA=1.0-exp(-0.55*clamp(T,0.0,2.0)); /* 에나멜이 여기광·방출광을 산란/감쇠하는 비율 (가정) */
+    float eFl=0.33*(1.0-0.6*lesion);
+    vec3 em=mix(eFl*vec3(0.42,0.62,0.95),uPatchFl*vec3(0.55,0.65,1.0),pm)*shade*ao+vec3(0.04,0.02,0.07)*shade;
+    float aU=clamp(max(uvA,pm)+((uLesion>1.5)?0.15:0.45)*lesion,0.02,1.0);
+    col=uFront*em*aU;
   }else{
     float grM=exp(-sq((xo+0.13)/0.035))*smoothstep(0.08,0.4,hh);
     float grD=exp(-sq((xo-0.12)/0.05))*smoothstep(0.25,0.55,hh);
@@ -446,9 +452,9 @@ void main(){
     refl*=mix(vec3(1.0),vec3(1.03,0.92,0.74),(1.0-smoothstep(0.12,0.62,hh))*mix(0.55,1.0,smoothstep(0.0,0.3,0.40-hh))*d); /* v5.4: 중앙 노란 글로우 약화 (경부는 유지) */
     float lv=min(1.0,0.62*exp(-sq((xo+0.215)/0.07))+1.0*exp(-sq((xo+0.025)/0.058))+0.82*exp(-sq((xo-0.165)/0.082))+0.25*exp(-sq((xo-0.07)/0.03)));
     float meV=0.80+0.06*lv; /* v5.4: 맘멜론을 끝 ~2 mm 이내로, 비주기 */ /* v5: 시각용 맘멜론 경계 (엽 사이가 더 깊게 파임) */
-    float inc=0.22*smoothstep(meV+0.03,meV+0.14,hh)*(0.8+0.3*vnoise(vec2(xo*9.0,hh*6.0))); /* v5: 균일한 띠 대신 세로 결 */
-    refl*=mix(vec3(1.0),vec3(0.72,0.83,1.06),inc*(1.0-halo));
-    refl+=uIllum*vec3(0.035,0.016,0.0)*smoothstep(meV-0.08,meV,hh)*(1.0-inc)*lv;
+    float inc=0.36*smoothstep(meV+0.02,meV+0.13,hh)*(0.8+0.3*vnoise(vec2(xo*9.0,hh*6.0))); /* v5: 균일한 띠 대신 세로 결 */
+    refl*=mix(vec3(1.0),vec3(0.70,0.82,1.08),inc*(1.0-halo)); /* v5.6: 오팔 청회 띠 강화 (0.22→0.36) */
+    refl+=uIllum*vec3(0.060,0.026,0.0)*smoothstep(meV-0.08,meV,hh)*(1.0-smoothstep(meV+0.02,meV+0.10,hh))*lv; /* v5.6: 맘멜론 끝 주황 강화 */
     float fl=smoothstep(0.55,0.95,0.6*vnoise(p*vec2(34.0,20.0))+0.4*vnoise(p*vec2(80.0,45.0)+7.0))*smoothstep(0.86,0.93,hh)*(1.0-smoothstep(0.972,0.988,hh)); /* v5.4: 절단 띠 내 불규칙 백색/청백 오팔 반점 */
     refl+=uIllum*vec3(0.92,0.95,1.0)*0.06*fl*shade; /* v5: 맘멜론 끝 주황 카운터-오팔레선스 */
     refl*=vec3(1.10,1.05,0.95)*1.10;
@@ -464,8 +470,10 @@ void main(){
     /* v3: 덴틴 투과를 확산 근사로: μeff=√(3μa(μa+μs')), 유효 경로 0.3배 (측방 확산으로 짧아짐, 가정) */
     vec3 mueff=sqrt(3.0*kabs*(kabs+sd));
     vec3 trans=uIllum*exp(-0.30*s*pathE)*exp(-mueff*pathD*0.36)/(1.0+0.08*sd*pathD)*7.0*(0.85+0.15*NV); /* v4: 메시 계단 면의 NV 의존 줄여 줄무늬 완화 */
+    if(nir)trans=uIllum*0.80*exp(-0.30*s*pathE)*exp(-0.35*pathD); /* v5.6: NIR 투조 — 에나멜 μs′≈0.12 mm⁻¹(Darling 2006)로 거의 투명, 덴틴은 산란으로 감쇠(유효 0.35 mm⁻¹, 가정) */
     if(!nir)trans*=pow(max(max(trans.r,trans.g),1e-3),-0.58)*1.10*(0.80+0.35*exp(-sq(xo/0.22))); /* v5: 중앙 글로, 측면 약간 어둡게 (사진 04 경향) */ /* v5: 밝기 압축(색상 유지) → 두꺼운 부위도 밝은 노랑-주황 */
-    float mixK=uFront/(uFront+uBackL+1e-3); /* v5.2: 반사+투과 동시일 때 절단부 노란 글로우 억제 (투과 단독 프리셋은 그대로) */
+    float mixK=uFront/(uFront+uBackL+1e-3);
+    if(!nir)trans*=mix(vec3(1.0),vec3(1.10,0.82,0.55),(1.0-mixK)*smoothstep(0.84,0.95,hh)*(1.0-0.5*smoothstep(0.975,1.0,hh))); /* v5.6: 투과 시 절단 에나멜 주황 카운터-오팔레선스 (Lee&Yu 2007) */ /* v5.2: 반사+투과 동시일 때 절단부 노란 글로우 억제 (투과 단독 프리셋은 그대로) */
     trans*=mix(vec3(1.0),vec3(0.62,0.66,0.74),mixK*smoothstep(0.55,0.92,hh));
     col=uFront*refl+uBackL*trans*uPass+0.015;
     if(nir){float g=col.g;col=vec3(g)*vec3(1.0,0.86,0.80);}
@@ -477,7 +485,8 @@ void main(){
   if(!uv&&!nir)al=mix(al,min(1.0,al*1.25+0.08),(1.0-d)*(1.0-smoothstep(0.62,0.80,hh))); /* v5: 측면 회색 투명 띠 감소 */
   float lvA=min(1.0,0.62*exp(-sq((xo+0.215)/0.07))+1.0*exp(-sq((xo+0.025)/0.058))+0.82*exp(-sq((xo-0.165)/0.082)));
   if(!uv&&!nir)al*=mix(1.0,mix(1.0,0.72,uFront/(uFront+uBackL+0.001)),smoothstep(0.82+0.06*lvA,0.93+0.04*lvA,hh)*(1.0-smoothstep(0.95,0.985,hh))); /* v4: 절단 반투명대 */
-  if(uv){float dk=(uLesion>1.5)?0.15*lesion:0.55*lesion;al=clamp(0.06+pm*0.94+dk,0.0,1.0);}
+  if(nir&&uBackL>0.01)al=max(al,0.85); /* v5.6: NIR 투조 수정 — 투명한 에나멜(α≈0.05)이 투과광을 α로 잘라 거의 검게 나오던 문제 */
+  if(uv){al=clamp(max(1.0-exp(-0.55*clamp(T,0.0,2.0)),pm)+((uLesion>1.5)?0.15:0.45)*lesion,0.02,1.0);} /* v5.6: 위 uvA와 동일 */
   vec3 Ns=normalize(mix(Ng0,N,0.3)+0.012*((vnoise(p*95.0)-0.5)*vTx+(vnoise(p*95.0+17.0)-0.5)*vTy)); /* v5.4 */ /* v5: 하이라이트용 미세 법선 */
   vec3 Rv=reflect(-V,Ns);
   float spk=pow(max(dot(Rv,normalize(vec3(-0.40,0.42,0.81))),0.0),320.0)+0.7*pow(max(dot(Rv,normalize(vec3(0.55,0.25,0.80))),0.0),360.0)+0.6*pow(max(dot(Rv,normalize(vec3(-0.12,0.18,0.976))),0.0),340.0)+0.28*pow(max(dot(Rv,normalize(vec3(0.08,-0.22,0.97))),0.0),380.0);
@@ -522,13 +531,13 @@ void main(){
   float ch=clamp(uChroma*(1.0-0.6*uBleach)*chG,0.0,1.4);
   vec3 D=mix(vec3(0.93,0.83,0.69),vec3(0.97,0.72,0.40),min(ch,1.0))*mix(0.9,1.08,uTub)*(1.0+0.12*uBleach)*mix(0.78,1.0,smoothstep(0.0,0.4,hh));
   D=mix(D,vec3(0.34,0.17,0.06),clamp((ch-0.95)/0.45,0.0,1.0));
-  D*=mix(vec3(1.0),vec3(1.0,0.86,0.66),smoothstep(me-0.07,me,hh)); /* v3: 맘멜론 끝 카운터-오팔레선스(주황) */
+  D*=mix(vec3(1.0),vec3(1.0,0.80,0.56),smoothstep(me-0.07,me,hh)); /* v5.6 강화 */ /* v3: 맘멜론 끝 카운터-오팔레선스(주황) */
   if(nir)D=vec3(0.90)*mix(0.85,1.05,uTub);
   float ao=mix(0.70,1.0,smoothstep(0.0,0.06,hh));
   vec3 col;
   if(uv){
-    float fl=exp(-0.08*T)*(1.0-0.15*uBleach);
-    col=uFront*(fl*vec3(0.30,0.52,1.0)*shade*ao+vec3(0.05,0.02,0.09)*shade);
+    float fl=(1.0-0.30*clamp(ch-0.5,0.0,1.0))*(1.0-0.15*uBleach); /* v5.6: 덴틴 chroma↑ → 형광↓ (Lee 2015) */
+    col=uFront*(fl*vec3(0.42,0.50,1.0)*shade*ao+vec3(0.04,0.02,0.07)*shade); /* v5.6: 440 nm 광대역 → 청백 */
   }else{
     float NVd=clamp(dot(N,normalize(vV)),0.0,1.0);
     vec3 dc=D*chrom;
@@ -562,6 +571,7 @@ const TEETH = { '11': [], '21': [] }, DENTIN = [];
 let BOX11 = null;
 
 /* ---------- 메시 불러오기 (m → mm로 정점에 굽기) ---------- */
+const CROWN_SX = 8.6 / 6.33, CROWN_SZ = 7.0 / 5.83; /* v5.6 */
 const MM = new THREE.Matrix4().makeScale(1000, 1000, 1000);
 const showError = err => { statusEl.hidden = false; statusEl.textContent = '모델을 불러오지 못했습니다: ' + (err?.message ?? err); };
 fetch('teeth-glb.txt').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); }).then(b64 => {
@@ -618,6 +628,14 @@ fetch('teeth-glb.txt').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`
         p.geo.setAttribute('aIn', new THREE.BufferAttribute(IN, 1));
       }
     }
+    /* v5.6: 치관 치수를 문헌에 맞춤 — 원 메시 근원심 폭 6.33 mm → 8.6 mm (Sterrett 1999 J Clin Periodontol 26:153, 남 8.59/여 8.06 mm), 정중선 기준 x 스케일.
+       순설측은 SZ만큼 치아 중심 기준 스케일. 셰이더용 aObj는 스케일 전 좌표에서 계산해 표면 특징 위치(엽·맘멜론)는 비례 유지 */
+    for (const t of ['11', '21']) { const b = boxes[t]; console.log('DIM', t, (b.max.x-b.min.x).toFixed(2), (b.max.y-b.min.y).toFixed(2), (b.max.z-b.min.z).toFixed(2)); }
+    for (const p of parts) {
+      const b = boxes[p.tooth], cz = (b.min.z + b.max.z) / 2;
+      p.geo.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, cz).multiply(new THREE.Matrix4().makeScale(CROWN_SX, 1, CROWN_SZ)).multiply(new THREE.Matrix4().makeTranslation(0, 0, -cz)));
+    }
+    for (const t of ['11', '21']) { const b = boxes[t]; const cz = (b.min.z + b.max.z) / 2; b.min.x *= CROWN_SX; b.max.x *= CROWN_SX; b.min.z = cz + (b.min.z - cz) * CROWN_SZ; b.max.z = cz + (b.max.z - cz) * CROWN_SZ; }
     /* v5: 법선 라플라시안 평활(3회) → 메시 계단 지형의 줄무늬 완화 (위치는 그대로) */
     for (const p of parts) {
       const g = p.geo; if (!g.index) continue;
