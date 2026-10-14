@@ -265,7 +265,7 @@ stage.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
-const rtA = new THREE.WebGLRenderTarget(4, 4), rtB = new THREE.WebGLRenderTarget(4, 4);
+const rtA = new THREE.WebGLRenderTarget(4, 4), rtB = new THREE.WebGLRenderTarget(4, 4), rtA2 = new THREE.WebGLRenderTarget(4, 4); /* v5.5: 치아별 덴틴 타깃 → 이웃 치아 덴틴이 비쳐 보이지 않게 */
 /* 화소별 광로 길이(mm): R = 에나멜, G = 덴틴. 뒷면 +깊이, 앞면 −깊이를 더해 시선 방향 두께를 얻음 */
 const fOpt = { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }; /* v4: 반정밀→단정밀 */
 const rtT = new THREE.WebGLRenderTarget(4, 4, fOpt), rtT2 = new THREE.WebGLRenderTarget(4, 4, fOpt);
@@ -488,6 +488,7 @@ void main(){
   float trf=(uPass>0.5)?(1.0-al):0.0;
   vec3 rgb=outc(col/al)*al+trf*bl.rgb+outc(spec);
   float aout=(uPass>0.5)?(1.0-trf*(1.0-bl.a)):al;
+  if(uPass>0.5&&!uv)aout=max(aout,1.0-0.12*smoothstep(0.90,0.975,hh)); /* v5.5: 치관은 뒤쪽 형상에 대해 불투명, 절단 끝 0.5–1 mm만 약간 비침 */
   gl_FragColor=vec4(rgb,aout);
 }`;
 
@@ -548,7 +549,7 @@ const U = {
   uIllum: { value: new THREE.Vector3(1, 1, 1) }, uLam: { value: new THREE.Vector3(610, 550, 460) },
   uShadeGain: { value: new THREE.Vector3(1.30, 1.30, 1.30) }, uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
 };
-const U21 = Object.assign({}, U, { uLesion: { value: 0 }, uPatchOn: { value: 0 }, uSec: { value: 0 }, uFlip: { value: 1 } });
+const U21 = Object.assign({}, U, { uDentin: { value: rtA2.texture }, uLesion: { value: 0 }, uPatchOn: { value: 0 }, uSec: { value: 0 }, uFlip: { value: 1 } });
 const withPass = (u, pass) => Object.assign({}, u, { uPass: { value: pass } });
 const blend = { transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendEquation: THREE.AddEquation };
 const mkEnamel = (u, side, dw) => new THREE.ShaderMaterial(Object.assign({ uniforms: u, vertexShader: VS, fragmentShader: FS_ENAMEL, side, depthWrite: dw }, blend));
@@ -787,7 +788,7 @@ apply();
 function resize() {
   renderer.setSize(stage.clientWidth, stage.clientHeight, false);
   const v = renderer.getDrawingBufferSize(new THREE.Vector2());
-  for (const rt of [rtA, rtB, rtT, rtT2]) rt.setSize(v.x, v.y);
+  for (const rt of [rtA, rtA2, rtB, rtT, rtT2]) rt.setSize(v.x, v.y);
   U.uRes.value.copy(v);
 }
 new ResizeObserver(resize).observe(stage); resize();
@@ -797,20 +798,25 @@ function drawFrame() {
   const bg = scene.background;
   if (!P.sec) { /* 1) 덴틴만 렌더 타깃에  2) 가우시안 블러 = 에나멜 내 횡방향 산란 */
     camera.layers.set(1); scene.background = null; renderer.setClearColor(0x000000, 0);
-    renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(scene, camera);
     renderer.getDrawingBufferSize(bufSize);
     const pxPerMm = bufSize.y * camera.zoom / (camera.top - camera.bottom);
     const sig = pxPerMm * (0.35 + 0.75 * P.thick) * Math.min(1.4, Math.pow(P.scat, .7)) * (P.mode === 2 ? .35 : 1); /* v4: 횡방향 산란 폭 ≈0.35+0.75·두께 mm */
-    bMat.uniforms.tDiffuse.value = rtA.texture; bMat.uniforms.uDir.value.set(sig / bufSize.x, 0);
-    renderer.setRenderTarget(rtB); renderer.render(bScene, bCam);
-    bMat.uniforms.tDiffuse.value = rtB.texture; bMat.uniforms.uDir.value.set(0, sig / bufSize.y);
-    renderer.setRenderTarget(rtA); renderer.render(bScene, bCam);
-    for (let k = 0; k < 1; k++) { /* v4: 2차 블러로 꼬리를 더 길게 (가우시안 합성) */
-      bMat.uniforms.tDiffuse.value = rtA.texture; bMat.uniforms.uDir.value.set(sig * .7 / bufSize.x, 0);
+    const dVis = DENTIN.map(d => d.visible);
+    for (const [tooth, rt] of [['11', rtA], ['21', rtA2]]) { /* v5.5: 치아마다 자기 덴틴만 */
+      DENTIN.forEach((d, i) => (d.visible = dVis[i] && d.userData.tooth === tooth));
+      renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
+      bMat.uniforms.tDiffuse.value = rt.texture; bMat.uniforms.uDir.value.set(sig / bufSize.x, 0);
       renderer.setRenderTarget(rtB); renderer.render(bScene, bCam);
-      bMat.uniforms.tDiffuse.value = rtB.texture; bMat.uniforms.uDir.value.set(0, sig * .7 / bufSize.y);
-      renderer.setRenderTarget(rtA); renderer.render(bScene, bCam);
+      bMat.uniforms.tDiffuse.value = rtB.texture; bMat.uniforms.uDir.value.set(0, sig / bufSize.y);
+      renderer.setRenderTarget(rt); renderer.render(bScene, bCam);
+      for (let k = 0; k < 1; k++) { /* v4: 2차 블러로 꼬리를 더 길게 (가우시안 합성) */
+        bMat.uniforms.tDiffuse.value = rt.texture; bMat.uniforms.uDir.value.set(sig * .7 / bufSize.x, 0);
+        renderer.setRenderTarget(rtB); renderer.render(bScene, bCam);
+        bMat.uniforms.tDiffuse.value = rtB.texture; bMat.uniforms.uDir.value.set(0, sig * .7 / bufSize.y);
+        renderer.setRenderTarget(rt); renderer.render(bScene, bCam);
+      }
     }
+    DENTIN.forEach((d, i) => (d.visible = dVis[i]));
     /* 3) 광로 길이 지도 (에나멜·덴틴), 같은 산란 폭으로 블러 */
     camera.layers.set(0);
     const ref = camera.position.distanceTo(controls.target);
