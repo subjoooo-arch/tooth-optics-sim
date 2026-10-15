@@ -172,6 +172,7 @@ details li { margin-bottom: 6px; }
             <option value="black">검정 (Cycles와 같음)</option>
             <option value="dark">구강 (어두움)</option>
             <option value="white">흰색</option>
+            <option value="grey">회색 18%</option>
           </select></div>
         <label class="check"><input type="checkbox" id="compare"> Cycles 원본과 비교</label>
         <div class="row" id="wipeRow" hidden><label for="wipeX">비교 경계</label><output id="o-wipeX"></output><input type="range" id="wipeX" min="0" max="100" step="1" value="50"></div>
@@ -253,8 +254,8 @@ function shadeGain() {
 }
 const SEC_HINT = '<b>단면</b> #11을 근원심 방향으로 잘라 안쪽을 봅니다. 연한 색이 에나멜, 주황이 덴틴 코어입니다. 절단 위치 슬라이더로 단면을 옮겨 보세요.';
 const ILLUM = { d65: [1, 1, 1], '4000': [1, .86, .68], '2700': [1, .74, .46] };
-const BACK = { dark: .04, white: .95, black: 0 };
-const BGCOL = { dark: '#0d1016', white: '#e8ebf0', black: '#000000' };
+const BACK = { dark: .04, white: .95, black: 0, grey: .18 };
+const BGCOL = { dark: '#0d1016', white: '#e8ebf0', black: '#000000', grey: '#767676' };
 
 /* ---------- 렌더러 ---------- */
 THREE.ColorManagement.enabled = false;   // 셰이더가 직접 감마 출력
@@ -268,6 +269,11 @@ scene.background = new THREE.Color(0x000000);
 const rtA = new THREE.WebGLRenderTarget(4, 4), rtB = new THREE.WebGLRenderTarget(4, 4), rtA2 = new THREE.WebGLRenderTarget(4, 4); /* v5.5: 치아별 덴틴 타깃 → 이웃 치아 덴틴이 비쳐 보이지 않게 */
 /* 화소별 광로 길이(mm): R = 에나멜, G = 덴틴. 뒷면 +깊이, 앞면 −깊이를 더해 시선 방향 두께를 얻음 */
 const fOpt = { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }; /* v4: 반정밀→단정밀 */
+const rtF = new THREE.WebGLRenderTarget(4, 4, { samples: 4 }); /* bg: 최종 장면을 검정·투명 위에 렌더 후 배경색 합성 */
+const fMat = new THREE.ShaderMaterial({ uniforms: { tDiffuse: { value: null }, uBg: { value: new THREE.Vector3() }, uLin: { value: 0 } }, depthTest: false, depthWrite: false,
+  vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
+  fragmentShader: 'uniform sampler2D tDiffuse;uniform vec3 uBg;uniform float uLin;varying vec2 vUv;void main(){vec4 c=texture2D(tDiffuse,vUv);gl_FragColor=vec4(c.rgb+uBg*mix(1.0-smoothstep(0.0,0.6,c.a),1.0-c.a,uLin),1.0);}' });
+const fScene = new THREE.Scene(); fScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fMat));
 const rtT = new THREE.WebGLRenderTarget(4, 4, fOpt), rtT2 = new THREE.WebGLRenderTarget(4, 4, fOpt);
 const tScene = new THREE.Scene();
 const mkThick = ch => new THREE.ShaderMaterial({
@@ -311,7 +317,7 @@ controls.update();
 const UNI = `
 uniform float uMode,uT,uHyd,uChroma,uTub,uBleach,uFront,uBackL,uLesion,uPatchOn,uPatchFl,uBacking,uPass,uTex,uGloss,uSpecK,uSec,uCut,uScat,uFlip,uHmm;
 uniform vec3 uIllum,uLam;
-uniform vec3 uShadeGain;uniform sampler2D uDentin;uniform sampler2D uThick;uniform vec2 uRes;
+uniform vec3 uShadeGain;uniform vec3 uBgCol;uniform float uBgK;uniform sampler2D uDentin;uniform sampler2D uThick;uniform vec2 uRes;
 `;
 const COMMON = `
 float sq(float x){return x*x;}
@@ -325,7 +331,7 @@ float box(vec2 p,vec2 lo,vec2 hi,float w){vec2 a=smoothstep(lo-w,lo+w,p)*(1.0-sm
 vec3 envMap(vec3 r,float rough){
   float w=0.20+rough*1.8; /* v4: 소프트박스 반사 가장자리를 더 흐리게 */
   vec3 c=mix(vec3(0.012,0.013,0.016),vec3(0.06,0.07,0.085),smoothstep(-0.5,0.9,r.y));
-  c*=1.0+6.0*uBacking;
+  c*=1.0+6.0*uBacking*smoothstep(0.0,-0.3,r.z); /* bg: 배경 밝기는 뒤쪽을 향한 반사(r.z<0)에만 */
   float fr=smoothstep(0.0,0.35,r.z);
   vec2 p=r.xy/max(r.z,0.25);
   float sb=2.0*box(p,vec2(-0.75,0.05),vec2(-0.45,0.85),w)+1.1*box(p,vec2(0.85,-0.20),vec2(1.05,0.70),w); /* v4: 소프트박스 반사 축소 */
@@ -421,6 +427,7 @@ void main(){
   vec3 s=mix(base*sf*lmul,base*0.55,pm);
   vec3 sR=mix(baseR*sf*lmul,baseR*0.55,pm);
   vec2 th0=max(texture2D(uThick,gl_FragCoord.xy/uRes).rg,0.0);
+  float pathE0=th0.r*uT/0.8; float mixK0=1.0-uFront/(uFront+uBackL+1e-3);
   float graze=clamp(th0.r*uT/0.8/(2.0*max(T,0.15)),1.0,3.3); /* v4: 블러된 광로 지도로 비스듬한 경로 증가 계산 (메시 계단면의 NV 대신) */
   vec3 a=s*T*graze;
   vec3 aR=sR*T*graze;
@@ -494,7 +501,11 @@ void main(){
   float trf=(uPass>0.5)?(1.0-al):0.0;
   vec3 rgb=outc(col/al)*al+trf*bl.rgb+outc(spec);
   float aout=(uPass>0.5)?(1.0-trf*(1.0-bl.a)):al;
-  if(uPass>0.5&&!uv)aout=max(aout,1.0-0.12*smoothstep(0.90,0.975,hh)); /* v5.5: 치관은 뒤쪽 형상에 대해 불투명, 절단 끝 0.5–1 mm만 약간 비침 */
+  if(uPass>0.5&&!uv)aout=max(aout,1.0-0.12*smoothstep(0.90,0.975,hh)); /* v5.5: 절단 끝 0.5–1 mm 알파 — 이제 검정 위로만 합성됨(아래 최종 합성 참조) */
+  if(uPass>0.5&&!uv&&!nir){ /* bg: 배경판 투과 — 배경광이 에나멜을 왕복(설측→순측) 통과. 덴틴 위는 ~0. 1 mm 에나멜 ΔEab≈18.7 (Yu, Ahn, Lee 2009 Acta Odontol Scand 67:57) 목표로 uBgK 보정 */
+    vec3 tb=uBgK*0.18*pow(1.0-d,4.0)*mix(0.50,1.6,incE)*exp(-0.05*s*pathE0)*(1.0-0.5*mixK0);
+    rgb+=uBgCol*tb;
+  }
   gl_FragColor=vec4(rgb,aout);
 }`;
 
@@ -553,7 +564,7 @@ const U = {
   uScat: { value: 1 }, uTex: { value: .35 }, uGloss: { value: .8 }, uSpecK: { value: 1 }, uSec: { value: 0 }, uCut: { value: 0 },
   uFlip: { value: -1 }, uHmm: { value: 10 },
   uIllum: { value: new THREE.Vector3(1, 1, 1) }, uLam: { value: new THREE.Vector3(610, 550, 460) },
-  uShadeGain: { value: new THREE.Vector3(1.30, 1.30, 1.30) }, uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
+  uShadeGain: { value: new THREE.Vector3(1.30, 1.30, 1.30) }, uBgCol: { value: new THREE.Vector3(0, 0, 0) }, uBgK: { value: 1 }, uDentin: { value: rtA.texture }, uThick: { value: rtT.texture }, uRes: { value: new THREE.Vector2(1, 1) },
 };
 const U21 = Object.assign({}, U, { uDentin: { value: rtA2.texture }, uLesion: { value: 0 }, uPatchOn: { value: 0 }, uSec: { value: 0 }, uFlip: { value: 1 } });
 const withPass = (u, pass) => Object.assign({}, u, { uPass: { value: pass } });
@@ -662,7 +673,7 @@ function apply() {
   const u = U;
   u.uMode.value = P.mode; u.uT.value = P.thick; u.uHyd.value = P.hyd; u.uChroma.value = P.chroma; u.uTub.value = P.tub;
   u.uBleach.value = P.bleach; u.uFront.value = P.front; u.uBackL.value = P.back; u.uLesion.value = P.lesion;
-  u.uPatchOn.value = P.patch ? 1 : 0; u.uPatchFl.value = P.patchFl; u.uBacking.value = BACK[P.backing];
+  u.uPatchOn.value = P.patch ? 1 : 0; u.uPatchFl.value = P.patchFl; u.uBacking.value = BACK[P.backing]; { const c = new THREE.Color(P.mode === 1 ? '#04020a' : BGCOL[P.backing]); u.uBgCol.value.set(c.r, c.g, c.b); }
   u.uScat.value = P.scat; u.uSec.value = P.sec ? 1 : 0; u.uCut.value = P.cut; u.uTex.value = P.tex; u.uGloss.value = P.gloss; u.uSpecK.value = P.cross ? 0 : 1; u.uShadeGain.value.set(...shadeGain()); { const t = shadeTarget(); $('shadeOut').textContent = `렌더 셰이드 목표 (${P.shade}, 반사 순측 중앙 1/3): L* ${t[0].toFixed(1)} / a* ${t[1].toFixed(1)} / b* ${t[2].toFixed(1)} — 위 '체부 색'은 모델 계산값으로 렌더 셰이드와 별개입니다.`; }
   const il = P.mode === 2 ? [1, 1, 1] : ILLUM[P.illum]; u.uIllum.value.set(...il);
   if (P.mode === 2) u.uLam.value.set(1310, 1310, 1310); else u.uLam.value.set(610, 550, 460);
@@ -794,7 +805,7 @@ apply();
 function resize() {
   renderer.setSize(stage.clientWidth, stage.clientHeight, false);
   const v = renderer.getDrawingBufferSize(new THREE.Vector2());
-  for (const rt of [rtA, rtA2, rtB, rtT, rtT2]) rt.setSize(v.x, v.y);
+  for (const rt of [rtA, rtA2, rtB, rtT, rtT2, rtF]) rt.setSize(v.x, v.y);
   U.uRes.value.copy(v);
 }
 new ResizeObserver(resize).observe(stage); resize();
@@ -840,7 +851,12 @@ function drawFrame() {
     }
   }
   camera.layers.set(0); scene.background = bg; renderer.setRenderTarget(null); renderer.setClearColor(0x000000, 1);
-  renderer.render(scene, camera);
+  if (P.sec) { renderer.render(scene, camera); return; }
+  /* bg: 치아는 검정·투명 위에 렌더(검정 배경과 동일 결과), 배경색은 치아가 없는 곳에만 → 배경 형상이 치관을 통해 보이지 않음 */
+  scene.background = null; renderer.setRenderTarget(rtF); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, camera);
+  scene.background = bg; renderer.setRenderTarget(null); renderer.setClearColor(0x000000, 1);
+  const c = (bg && bg.isColor ? bg.clone() : new THREE.Color(0)); fMat.uniforms.uBg.value.set(c.r, c.g, c.b); fMat.uniforms.tDiffuse.value = rtF.texture; fMat.uniforms.uLin.value = P.mode === 1 ? 1 : 0; /* UV: 기존 알파 합성 유지 */
+  renderer.render(fScene, bCam);
 }
 renderer.setAnimationLoop(() => { controls.update(); drawFrame(); });
 </script>
